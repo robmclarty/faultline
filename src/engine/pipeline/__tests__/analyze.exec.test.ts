@@ -16,8 +16,7 @@ import {
   write_manifest,
   write_tree,
   write_consolidated_notes,
-  write_cross_references,
-  read_budget
+  write_cross_references
 } from '../../../stores/index.js'
 import type {
   Domain,
@@ -281,8 +280,6 @@ describe('execute_analyze', () => {
         suggestions: [],
         uncovered_files: []
       })
-      const recon_json = JSON.stringify([])
-
       mock_invoke.mockResolvedValue(make_result(consolidated))
 
       // Second call is consolidation, third is review, etc.

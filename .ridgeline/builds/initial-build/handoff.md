@@ -331,3 +331,29 @@ None.
 - The `--max-budget-usd` flag provides per-invocation budget ceiling enforcement. The budget is checked by reading `budget.json` before each Claude call, so it has file I/O overhead proportional to invocation count.
 - Resume works at both phase level (completed phases skipped) and task level (completed tasks within phases skipped by individual phase executors).
 - The dry-run cost estimate is approximate — it uses token counts from the extraction plan and sonnet pricing. Actual costs will vary based on model choice and output length.
+
+## Phase 4 Retry 2: Fix Criteria 8 & 17
+
+### What was fixed
+
+1. **Criterion 8 — Within-phase resume for survey** (`src/engine/pipeline/survey.exec.ts`): Refactored `execute_survey` from a monolithic function into per-step helper functions (`step_file_index`, `step_manifest`, `step_tree`, `step_classify`, `step_domains`, `step_domain_review`, `step_extraction_plan`, `step_architecture`, `step_learnings`). Each step checks `is_task_done()` before executing — completed tasks are skipped and their artifacts reloaded from disk. This also resolved the fallow cognitive complexity violation (was 37, now under threshold).
+
+2. **Criterion 8 supplement — Domain-level resume for extract** (`src/engine/pipeline/extract.exec.ts`): Added a `domain_<id>` task completion check in the domain queue loop so fully-completed domains are skipped entirely on resume, not just their individual batches.
+
+3. **Criterion 17 — Within-phase resume integration tests** (`src/engine/pipeline/__tests__/analyze.exec.test.ts`): Added two tests: (a) partial survey resume — sets file_index/manifest/tree/classify as completed, verifies invoke_claude is first called for domain_mapping (not classify); (b) partial extract resume — marks auth domain fully completed, verifies invoke_claude is only called for the incomplete tasks domain.
+
+4. **New store function** (`src/stores/survey.ts`): Added `read_tree()` to support tree artifact reloading during survey resume.
+
+### Decisions
+
+- Used a `SurveyContext` type to thread shared state (config, output_dir, phase, state) through step functions, avoiding parameter explosion.
+- Each step function returns the artifact it produces so downstream steps can use it without re-reading from disk on first run.
+
+### Deviations
+
+None.
+
+### Notes for next phase
+
+- All 152 tests pass with zero failures and zero lint warnings (including fallow complexity).
+- Within-phase resume is now implemented for all pipeline phases: survey (task-level), extract (domain-level + batch-level), reconcile, and synthesize.

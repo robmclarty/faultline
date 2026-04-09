@@ -40,7 +40,7 @@
     },
     {
       "id": "04-integration-and-documentation",
-      "status": "pending",
+      "status": "reviewing",
       "checkpointTag": "ridgeline/checkpoint/initial-build/04-integration-and-documentation",
       "completionTag": null,
       "retries": 0,

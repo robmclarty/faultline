@@ -179,7 +179,31 @@
       "cacheCreationInputTokens": 130524,
       "durationMs": 870884,
       "timestamp": "2026-04-09T19:46:40.164Z"
+    },
+    {
+      "phase": "04-integration-and-documentation",
+      "role": "reviewer",
+      "attempt": 0,
+      "costUsd": 1.02844335,
+      "inputTokens": 6911,
+      "outputTokens": 7644,
+      "cacheReadInputTokens": 721359,
+      "cacheCreationInputTokens": 49544,
+      "durationMs": 196431,
+      "timestamp": "2026-04-09T19:50:04.268Z"
+    },
+    {
+      "phase": "04-integration-and-documentation",
+      "role": "builder",
+      "attempt": 1,
+      "costUsd": 2.389237,
+      "inputTokens": 44,
+      "outputTokens": 22975,
+      "cacheReadInputTokens": 2674109,
+      "cacheCreationInputTokens": 76414,
+      "durationMs": 424506,
+      "timestamp": "2026-04-09T19:57:16.382Z"
     }
   ],
-  "totalCostUsd": 32.72115485
+  "totalCostUsd": 36.1388352
 }

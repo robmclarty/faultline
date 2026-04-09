@@ -9,7 +9,7 @@
     "faultline": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && rm -rf dist/agents && cp -r src/agents dist/agents",
     "dev": "tsc --watch",
     "lint": "npm run lint:code && npm run lint:markdown && npm run lint:agents && npm run lint:fallow",
     "lint:code": "oxlint --ignore-pattern examples",

@@ -228,6 +228,7 @@ export type FaultlineConfig = {
   concurrency: number
   skip_deep_pass: boolean
   skip_reconcile: boolean
+  max_budget_usd: number
   ridgeline_name: string
   include: string[]
   exclude: string[]

@@ -3,7 +3,7 @@ import { writeFile, mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { append_budget_entry, create_budget_entry } from '../../stores/budget.js'
+import { append_budget_entry, create_budget_entry, read_budget } from '../../stores/budget.js'
 import type { ClaudeInvocationResult } from '../../types.js'
 
 ///////////////////////////////////////////////////////////////// Constants //
@@ -20,6 +20,7 @@ export type InvokeOptions = {
   input: string
   timeout?: number
   max_retries?: number
+  max_budget_usd?: number
   output_dir: string
   phase: string
   task: string
@@ -36,6 +37,19 @@ export class ClaudeInvocationError extends Error {
   ) {
     super(message)
     this.name = 'ClaudeInvocationError'
+  }
+}
+
+export class BudgetExceededError extends Error {
+  constructor(
+    public spent: number,
+    public limit: number
+  ) {
+    super(
+      `Budget ceiling exceeded: $${spent.toFixed(4)} spent ` +
+      `of $${limit.toFixed(2)} limit`
+    )
+    this.name = 'BudgetExceededError'
   }
 }
 
@@ -64,6 +78,25 @@ const setup_cleanup = (): void => {
 }
 
 let cleanup_registered = false
+
+/**
+ * Global budget limit. When set to a positive number, invoke_claude will check
+ * cumulative cost from budget.json before each invocation and throw
+ * BudgetExceededError if the limit would be exceeded.
+ */
+let global_budget_limit = 0
+
+/**
+ * Set Budget Limit
+ *
+ * Sets the global budget ceiling for all subsequent Claude invocations.
+ * Set to 0 to disable budget checking.
+ *
+ * @param limit_usd - The budget ceiling in USD.
+ */
+export const set_budget_limit = (limit_usd: number): void => {
+  global_budget_limit = limit_usd
+}
 
 /**
  * Parses token counts from Claude's verbose stderr output.
@@ -106,6 +139,7 @@ export const invoke_claude = async (options: InvokeOptions): Promise<ClaudeInvoc
     input,
     timeout = DEFAULT_TIMEOUT,
     max_retries = MAX_RETRIES,
+    max_budget_usd = 0,
     output_dir,
     phase,
     task,
@@ -113,6 +147,17 @@ export const invoke_claude = async (options: InvokeOptions): Promise<ClaudeInvoc
     allowed_tools,
     agents
   } = options
+
+  // Check budget ceiling before invocation
+  const effective_budget = max_budget_usd > 0 ? max_budget_usd : global_budget_limit
+
+  if (effective_budget > 0) {
+    const budget = await read_budget(output_dir)
+
+    if (budget.total_cost >= effective_budget) {
+      throw new BudgetExceededError(budget.total_cost, effective_budget)
+    }
+  }
 
   let last_error: Error | null = null
 

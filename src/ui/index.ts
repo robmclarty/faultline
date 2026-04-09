@@ -11,5 +11,6 @@ export { create_spinner } from './spinner.js'
 export {
   format_status,
   format_budget,
-  format_survey_summary
+  format_survey_summary,
+  format_dry_run
 } from './reporter.js'

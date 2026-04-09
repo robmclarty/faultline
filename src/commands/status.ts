@@ -11,7 +11,8 @@ import { format_status, format_budget, log_info } from '../ui/index.js'
 /**
  * Register Status Command
  *
- * Registers the `status` subcommand with the CLI program.
+ * Registers the `status` subcommand. Displays pipeline state including
+ * completed, in-progress, and pending phases/tasks with timing and cost.
  *
  * @param program - The commander program instance.
  */
@@ -27,7 +28,7 @@ export const register_status = (program: Command): void => {
       const state = await read_state(output_dir)
 
       if (!state) {
-        log_info('No pipeline state found')
+        log_info('No pipeline state found. Run `faultline analyze` or `faultline survey` first.')
         return
       }
 

@@ -25,13 +25,19 @@ export {
   read_domains,
   write_domain_review,
   write_extraction_plan,
-  write_architecture
+  read_extraction_plan,
+  write_architecture,
+  read_architecture
 } from './survey.js'
 export {
   write_batch_notes,
   read_batch_notes,
   write_consolidated_notes,
-  read_consolidated_notes
+  read_consolidated_notes,
+  write_extraction_review,
+  read_extraction_review,
+  write_deep_pass_notes,
+  read_deep_pass_notes
 } from './extractions.js'
 export { write_output_file } from './output.js'
 export { validate_token_ceiling, TokenCeilingError } from './validation.js'

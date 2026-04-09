@@ -11,6 +11,8 @@ const DEFAULT_REVIEW_MODEL = 'sonnet'
 const DEFAULT_CONTEXT_BUDGET = 150_000
 const DEFAULT_TIMEOUT = 300_000
 const DEFAULT_MAX_RETRIES = 3
+const DEFAULT_CONCURRENCY = 3
+const DEFAULT_SKIP_DEEP_PASS = false
 const DEFAULT_OUTPUT_DIR = '.faultline'
 const CONFIG_FILENAME = 'config.json'
 
@@ -45,6 +47,8 @@ export const resolve_config = (
     context_budget: DEFAULT_CONTEXT_BUDGET,
     timeout: DEFAULT_TIMEOUT,
     max_retries: DEFAULT_MAX_RETRIES,
+    concurrency: DEFAULT_CONCURRENCY,
+    skip_deep_pass: DEFAULT_SKIP_DEEP_PASS,
     include: [],
     exclude: [],
     output_dir: DEFAULT_OUTPUT_DIR,

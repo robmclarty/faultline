@@ -179,6 +179,13 @@ export type ClaudeInvocationResult = {
   output_tokens: number
 }
 
+export type ExtractionReview = {
+  passed: boolean
+  issues: string[]
+  suggestions: string[]
+  uncovered_files: string[]
+}
+
 export type FaultlineConfig = {
   target_dir: string
   model: string
@@ -187,6 +194,8 @@ export type FaultlineConfig = {
   context_budget: number
   timeout: number
   max_retries: number
+  concurrency: number
+  skip_deep_pass: boolean
   include: string[]
   exclude: string[]
   output_dir: string

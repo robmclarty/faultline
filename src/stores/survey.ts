@@ -199,6 +199,48 @@ export const write_extraction_plan = async (
 }
 
 /**
+ * Read Extraction Plan
+ *
+ * Reads the extraction plan from disk.
+ *
+ * @param output_dir - The .faultline directory path.
+ * @returns The extraction plan, or null.
+ */
+export const read_extraction_plan = async (
+  output_dir: string
+): Promise<ExtractionPlan | null> => {
+  const path = join(output_dir, SURVEY_DIR, 'extraction_plan.json')
+
+  if (!existsSync(path)) {
+    return null
+  }
+
+  const content = await readFile(path, 'utf-8')
+
+  return JSON.parse(content) as ExtractionPlan
+}
+
+/**
+ * Read Architecture
+ *
+ * Reads the architecture description markdown from disk.
+ *
+ * @param output_dir - The .faultline directory path.
+ * @returns The architecture markdown, or null.
+ */
+export const read_architecture = async (
+  output_dir: string
+): Promise<string | null> => {
+  const path = join(output_dir, SURVEY_DIR, 'architecture.md')
+
+  if (!existsSync(path)) {
+    return null
+  }
+
+  return readFile(path, 'utf-8')
+}
+
+/**
  * Write Architecture
  *
  * Persists the architecture description markdown.

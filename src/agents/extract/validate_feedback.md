@@ -1,11 +1,26 @@
 # Validation Feedback
 
-Review the extraction notes for domain "{{domain}}" and identify any gaps or
-inaccuracies based on the source files provided.
+The extraction notes for domain "{{domain_label}}" failed validation. The
+following files from the extraction plan were not referenced in the notes:
 
-## Rules
+{{missing_files}}
 
-- Flag any features mentioned in code but missing from notes
-- Flag any notes that appear to contradict the source code
-- Suggest specific additions or corrections
-- Keep feedback under 2000 characters
+Review the source code for these files and produce additional extraction notes
+covering the missing files. Follow the same rules as the original extraction:
+
+- Focus on WHAT the system does, not HOW it's coded
+- Identify features, behaviors, constraints, and business rules
+- Never mention specific framework names or library names
+- Reference source files by name
+
+## Output Format
+
+Produce additional notes in the same format:
+
+### Business Rules Observed
+
+### Data Invariants
+
+### Gaps & Ambiguities
+
+### Cross-Domain Observations

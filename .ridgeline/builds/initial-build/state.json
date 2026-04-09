@@ -30,12 +30,12 @@
     },
     {
       "id": "03-reconciliation-and-synthesis",
-      "status": "pending",
+      "status": "complete",
       "checkpointTag": "ridgeline/checkpoint/initial-build/03-reconciliation-and-synthesis",
-      "completionTag": null,
+      "completionTag": "ridgeline/phase/initial-build/03-reconciliation-and-synthesis",
       "retries": 0,
-      "duration": null,
-      "completedAt": null,
+      "duration": 1144665,
+      "completedAt": "2026-04-09T19:32:01.530Z",
       "failedAt": null
     },
     {

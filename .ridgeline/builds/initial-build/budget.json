@@ -167,7 +167,19 @@
       "cacheCreationInputTokens": 78377,
       "durationMs": 135538,
       "timestamp": "2026-04-09T19:32:01.472Z"
+    },
+    {
+      "phase": "04-integration-and-documentation",
+      "role": "builder",
+      "attempt": 0,
+      "costUsd": 6.4789245,
+      "inputTokens": 93,
+      "outputTokens": 37051,
+      "cacheReadInputTokens": 9472819,
+      "cacheCreationInputTokens": 130524,
+      "durationMs": 870884,
+      "timestamp": "2026-04-09T19:46:40.164Z"
     }
   ],
-  "totalCostUsd": 26.24223035
+  "totalCostUsd": 32.72115485
 }

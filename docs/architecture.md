@@ -36,7 +36,8 @@ maps to one CLI subcommand.
 
 All orchestration and analysis logic. Decides what to do and in what order.
 
-- **pipeline/** — Phase sequencing. `survey.exec.ts` runs the survey steps in
+- **pipeline/** — Phase sequencing. `survey.exec.ts`, `extract.exec.ts`,
+  `reconcile.exec.ts`, and `synthesize.exec.ts` run each phase's steps in
   order, managing state transitions and error recovery.
 - **claude/** — Subprocess management for `claude --print`. Handles timeout
   enforcement (kills the child process), retry with exponential backoff, cost
@@ -57,6 +58,10 @@ orchestration logic.
 - **state.ts** — Pipeline state persistence and resume detection
 - **budget.ts** — Per-invocation cost logging
 - **survey.ts** — Survey phase artifacts (file_index, domains, etc.)
+- **extractions.ts** — Extraction artifacts (batch notes, consolidated notes, reviews)
+- **reconciliation.ts** — Cross-reference report read/write
+- **synthesis.ts** — Domain summaries read/write
+- **output.ts** — Final deliverable output with ridgeline copy support
 - **learnings.ts** — Two-tier learnings system
 - **validation.ts** — Token ceiling enforcement
 
@@ -101,13 +106,36 @@ it easier to swap models or use different Claude configurations.
 ## Data Flow
 
 ```text
-codebase → [file walker] → file_index.json
-         → [classifier]  → file_index.json (updated)
-         → [domain mapper] → domains.json
-         → [domain review] → domain_review.json
-         → [plan builder]  → extraction_plan.json
-         → [architecture]  → architecture.md
-                           → learnings.json
+Survey:
+  codebase → [file walker] → file_index.json
+           → [classifier]  → file_index.json (updated)
+           → [domain mapper] → domains.json
+           → [domain review] → domain_review.json
+           → [plan builder]  → extraction_plan.json
+           → [architecture]  → architecture.md
+                             → learnings.json
+
+Extract:
+  file_index + domains + plan → [batch extractor] → batch-NN.notes.md
+                               → [consolidator]   → consolidated.notes.md
+                               → [reviewer]       → review.json
+                               → [deep pass]      → deep_pass.notes.md
+                                                   → learnings.json
+
+Reconcile:
+  domains + consolidated notes → [graph builder] → interaction graph
+                                → [clusterer]    → clusters
+                                → [reconciler]   → cross_references.json
+                                                 → learnings.json
+
+Synthesize:
+  consolidated notes + cross_refs → [summarizer]  → domain_summaries.json
+                                  → [spec writer] → specs/<domain>/*.md
+                                  → [enforcer]    → abstraction scan + rewrite
+                                  → [overview]    → specs/00-overview.md
+                                  → [arch refine] → architecture.md
+                                  → [constraints] → constraints.md
+                                  → [taste]       → taste.md
 ```
 
 Each step reads from prior artifacts and writes new ones. The state.json file

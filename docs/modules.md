@@ -88,8 +88,75 @@ the lowest-priority types first:
 
 Within the same type, older entries are dropped before newer ones.
 
+## stores/extractions.ts
+
+Manages extraction artifacts under `.faultline/extractions/<domain>/`:
+
+- **Batch notes**: `batch-NN.notes.md` — individual batch extraction results
+- **Consolidated notes**: `consolidated.notes.md` — merged per-domain notes
+- **Reviews**: `review.json` — extraction reviewer verdicts
+- **Deep pass**: `deep_pass.notes.md` — additional findings for high-priority domains
+
+All markdown files are validated against the 5k token ceiling before writing.
+
+## stores/reconciliation.ts
+
+Manages the cross-reference report at
+`.faultline/extractions/cross_references.json`. The report contains clusters
+of related domains and typed findings (duplicate_rule, missing_handoff,
+shared_invariant, undeclared_dependency).
+
+## stores/synthesis.ts
+
+Manages domain summaries at `.faultline/synthesis/domain_summaries.json`.
+Each summary is approximately 500 tokens of compressed domain knowledge
+used as context during spec writing.
+
+## stores/output.ts
+
+Manages final deliverables under `.faultline/output/`. Supports nested
+subdirectories for spec organization (e.g., `specs/auth/01-identity.md`).
+
+Also handles copying the entire output to `.ridgeline/builds/<name>/` when
+the `--ridgeline` flag is specified.
+
 ## stores/validation.ts
 
 Enforces the 5k token ceiling (~20k characters) on any file intended for
 Claude consumption. This prevents accidentally sending oversized context
 that would degrade model performance.
+
+## engine/pipeline/reconcile.exec.ts
+
+Cross-domain reconciliation pipeline:
+
+1. **Graph building**: Constructs a domain interaction graph from declared
+   dependencies (domains.json `depends_on`) plus grep-based reference
+   detection in consolidated notes
+2. **Cluster identification**: Finds connected components via BFS, splits
+   components exceeding 5 domains by removing weakest edges
+3. **Per-cluster reconciliation**: Sends all constituent domains' consolidated
+   notes to Claude to find duplications, contradictions, missing handoffs,
+   shared invariants, and undeclared dependencies
+4. **Learnings**: Appends findings to the learnings system
+
+Isolated domains (no cross-domain edges) are skipped.
+
+## engine/pipeline/synthesize.exec.ts
+
+Synthesis pipeline with seven steps:
+
+1. **3a: Domain summaries** — Compress each domain's consolidated notes to
+   ~500 tokens for use as context
+2. **3b: Spec writing** — Per-domain spec writing in ridgeline format
+   (Overview, Requirements, Known Gaps, Relationships), with Claude deciding
+   single vs multi-file output via `SPEC_SPLIT` delimiters
+3. **3b': Abstraction enforcement** — Harness-level scan for file extensions,
+   framework names, long identifiers, and path-like strings. Flagged specs
+   are resubmitted once with violation feedback
+4. **3c: Overview** — System-wide overview with shared invariants from
+   reconciliation
+5. **3d: Architecture** — Refinement of survey architecture with extraction
+   and reconciliation insights
+6. **3e: Constraints** — Extraction from manifests and config files
+7. **3f: Taste** — Extraction from linter configs and source samples

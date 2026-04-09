@@ -1,0 +1,17 @@
+{
+  "development": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "sampleapp_dev"
+  },
+  "test": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "sampleapp_test"
+  },
+  "production": {
+    "host": "${DB_HOST}",
+    "port": 5432,
+    "database": "sampleapp"
+  }
+}

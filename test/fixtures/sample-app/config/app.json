@@ -1,0 +1,13 @@
+{
+  "port": 3000,
+  "cors": {
+    "origin": "*"
+  },
+  "jwt": {
+    "expiresIn": "24h"
+  },
+  "rateLimit": {
+    "windowMs": 900000,
+    "max": 100
+  }
+}

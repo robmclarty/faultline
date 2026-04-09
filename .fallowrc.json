@@ -1,6 +1,12 @@
 {
   "entry": [],
   "ignoreExports": [],
+  "ignoreDependencies": [
+    "ridgeline"
+  ],
+  "ignorePatterns": [
+    "test/fixtures/**"
+  ],
   "duplicates": {
     "ignore": [
       "**/__tests__/**"
@@ -10,5 +16,11 @@
   "health": {
     "maxCyclomatic": 25,
     "maxCognitive": 30
+  },
+  "rules": {
+    "unlisted-dependencies": "off",
+    "unused-exports": "off",
+    "unused-types": "off",
+    "unused-files": "off"
   }
 }

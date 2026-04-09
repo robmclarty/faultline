@@ -1,0 +1,21 @@
+{
+  "name": "sample-app",
+  "version": "1.2.3",
+  "description": "A sample Express API application",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "pg": "^8.11.0",
+    "jsonwebtoken": "^9.0.0",
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "eslint": "^8.50.0"
+  }
+}

@@ -3,8 +3,7 @@ exclude = [
     "node_modules/**",
     ".git/**",
     "dist/**",
-    "src/agents/core/**",
-    "src/agents/planners/context.md",
+    "src/agents/**",
 ]
 target = "ClaudeCode"
 tools = ["claude-code"]

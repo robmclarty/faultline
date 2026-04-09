@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "Rob McLarty",
   "bin": {
-    "faultline": ""
+    "faultline": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

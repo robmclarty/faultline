@@ -119,7 +119,19 @@
       "cacheCreationInputTokens": 93867,
       "durationMs": 135502,
       "timestamp": "2026-04-09T18:59:25.143Z"
+    },
+    {
+      "phase": "02-extraction-pipeline",
+      "role": "builder",
+      "attempt": 0,
+      "costUsd": 3.8428662500000006,
+      "inputTokens": 64,
+      "outputTokens": 37224,
+      "cacheReadInputTokens": 4597030,
+      "cacheCreationInputTokens": 98149,
+      "durationMs": 650100,
+      "timestamp": "2026-04-09T19:10:23.629Z"
     }
   ],
-  "totalCostUsd": 14.2748359
+  "totalCostUsd": 18.11770215
 }

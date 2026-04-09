@@ -1,0 +1,4 @@
+{"timestamp":"2026-04-09T15:46:00.113Z","type":"plan_start","phaseId":null,"duration":null,"tokens":null,"costUsd":null,"summary":"Planning started"}
+{"timestamp":"2026-04-09T15:58:09.753Z","type":"plan_start","phaseId":null,"duration":null,"tokens":null,"costUsd":null,"summary":"Planning started"}
+{"timestamp":"2026-04-09T18:04:30.856Z","type":"plan_start","phaseId":null,"duration":null,"tokens":null,"costUsd":null,"summary":"Planning started"}
+{"timestamp":"2026-04-09T18:11:09.755Z","type":"plan_complete","phaseId":null,"duration":392987,"tokens":{"input":34,"output":26913},"costUsd":2.3537444,"summary":"Generated 4 phases"}

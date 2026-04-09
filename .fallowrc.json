@@ -1,0 +1,14 @@
+{
+  "entry": [],
+  "ignoreExports": [],
+  "duplicates": {
+    "ignore": [
+      "**/__tests__/**"
+    ],
+    "minLines": 10
+  },
+  "health": {
+    "maxCyclomatic": 25,
+    "maxCognitive": 30
+  }
+}

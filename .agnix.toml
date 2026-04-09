@@ -1,0 +1,50 @@
+severity = "Warning"
+exclude = [
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    "src/agents/core/**",
+    "src/agents/planners/context.md",
+]
+target = "ClaudeCode"
+tools = ["claude-code"]
+max_files_to_validate = 10000
+
+[rules]
+skills = true
+hooks = true
+agents = true
+memory = true
+plugins = true
+xml = true
+mcp = true
+imports = true
+cross_platform = false
+agents_md = false
+copilot = false
+cursor = false
+cline = false
+opencode = false
+gemini_md = false
+codex = false
+roo_code = false
+windsurf = false
+kiro_steering = false
+kiro_agents = false
+amp_checks = false
+prompt_engineering = true
+generic_instructions = false
+frontmatter_validation = true
+xml_balance = true
+import_references = true
+disabled_rules = []
+disabled_validators = []
+
+[tool_versions]
+
+[spec_revisions]
+
+[files]
+include_as_memory = []
+include_as_generic = []
+exclude = []

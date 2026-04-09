@@ -1,0 +1,52 @@
+{
+  "buildName": "initial-build",
+  "startedAt": "2026-04-09T18:25:30.330Z",
+  "pipeline": {
+    "shape": "complete",
+    "spec": "complete",
+    "plan": "complete",
+    "build": "running"
+  },
+  "phases": [
+    {
+      "id": "01-foundation-and-survey",
+      "status": "pending",
+      "checkpointTag": "ridgeline/checkpoint/initial-build/01-foundation-and-survey",
+      "completionTag": null,
+      "retries": 0,
+      "duration": null,
+      "completedAt": null,
+      "failedAt": null
+    },
+    {
+      "id": "02-extraction-pipeline",
+      "status": "pending",
+      "checkpointTag": "ridgeline/checkpoint/initial-build/02-extraction-pipeline",
+      "completionTag": null,
+      "retries": 0,
+      "duration": null,
+      "completedAt": null,
+      "failedAt": null
+    },
+    {
+      "id": "03-reconciliation-and-synthesis",
+      "status": "pending",
+      "checkpointTag": "ridgeline/checkpoint/initial-build/03-reconciliation-and-synthesis",
+      "completionTag": null,
+      "retries": 0,
+      "duration": null,
+      "completedAt": null,
+      "failedAt": null
+    },
+    {
+      "id": "04-integration-and-documentation",
+      "status": "pending",
+      "checkpointTag": "ridgeline/checkpoint/initial-build/04-integration-and-documentation",
+      "completionTag": null,
+      "retries": 0,
+      "duration": null,
+      "completedAt": null,
+      "failedAt": null
+    }
+  ]
+}

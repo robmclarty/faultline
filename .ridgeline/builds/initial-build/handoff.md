@@ -264,3 +264,70 @@ None.
 - Output structure: `.faultline/output/specs/<domain>/NN-<name>.md`, `.faultline/output/specs/00-overview.md`, `.faultline/output/architecture.md`, `.faultline/output/constraints.md`, `.faultline/output/taste.md`.
 - The abstraction enforcement scan may produce false positives (e.g., "class" detected as a long camelCase identifier). The one-retry approach limits the damage — remaining violations after retry are logged as warnings.
 - The `dry-run` and `status` commands are still stubs. They could be wired up to show cost estimates and pipeline status respectively.
+
+## Phase 4: Integration, Resume Logic & Documentation
+
+### What was built
+
+**Pipeline integration (`engine/pipeline/analyze.exec.ts`):**
+
+- End-to-end pipeline orchestrator chaining survey → extract → reconcile → synthesize
+- Resume support: skips completed phases via `is_phase_completed()` checks
+- Budget ceiling enforcement: sets global budget limit via `set_budget_limit()`, catches `BudgetExceededError` to save state and exit gracefully
+- Skip flags: `--skip-reconcile` skips Phase 2.5, `--skip-deep-pass` forwarded to extract phase
+- SIGINT handling: installs handler that saves `state.json` before exit (code 130), removes handler after completion
+
+**Budget enforcement (`engine/claude/invoke.ts`):**
+
+- `BudgetExceededError` class with spent/limit fields
+- `set_budget_limit()` function sets module-level budget ceiling
+- Pre-invocation budget check reads `budget.json` and compares against ceiling
+- Effective budget is max of per-call `max_budget_usd` option and global `global_budget_limit`
+
+**CLI commands:**
+
+- `commands/analyze.ts` — Full CLI with all flags: `--model`, `--survey-model`, `--concurrency`, `--max-retries`, `--max-budget-usd`, `--skip-reconcile`, `--skip-deep-pass`, `--ridgeline`, `--include`, `--exclude`, `--context-budget`, `--timeout`, `--output`, `--verbose`
+- `commands/dry_run.ts` — Shows extraction plan with per-domain task counts, batch counts, token estimates, invocation estimates, and projected cost. Runs survey first if needed.
+- `commands/status.ts` — Enhanced with timing and cost info (already partially working from prior phases)
+
+**Types & config:**
+
+- `max_budget_usd` field added to `FaultlineConfig` (default 0 = unlimited)
+- Config defaults updated in `stores/config.ts`
+
+**UI enhancements:**
+
+- `format_dry_run()` in `ui/reporter.ts` — Dry-run report with domain breakdown, token totals, invocation estimates, and cost projection
+- `format_duration()` helper — Converts elapsed ms to human-readable (e.g., "2m 30s", "1h 15m")
+- Status report now shows duration per phase/task
+
+**Tests (7 new, 150 total):**
+
+- `engine/pipeline/__tests__/analyze.exec.test.ts`: Phase sequencing (resume skip, skip-reconcile), resume across phase boundaries, budget enforcement (graceful halt), state persistence (creation, per-phase), cost tracking (invoke_claude called for synthesis)
+
+**Documentation:**
+
+- `README.md` — Full rewrite with command reference, key flags table, pipeline diagram, resume/interruption docs, cost expectations, output structure, architecture overview
+- `docs/architecture.md` — Added analyze.exec, budget enforcement, SIGINT handling, resume architecture diagram, mermaid pipeline flow
+- `docs/modules.md` — Added analyze.exec, budget ceiling, config tiers, reporter duration formatting descriptions
+- `docs/security.md` — Added budget enforcement, SIGINT behavior, temp file handling, config file defensive parsing
+- `docs/howto.md` — Added analyze, dry-run, resume, budget ceiling, interruption handling, ridgeline output, artifact inspection guides
+
+### Decisions
+
+- **Global budget limit via module-level variable**: Rather than threading `max_budget_usd` through every invoke_claude call in all four phase executors, the analyze command sets a global limit via `set_budget_limit()`. This keeps the phase executors unchanged while providing per-invocation enforcement.
+- **BudgetExceededError propagation**: The error is thrown by `invoke_claude` and caught by `execute_analyze`. Individual phase executors don't need to know about budget limits — the error propagates naturally through the call stack.
+- **SIGINT handler as install/cleanup pattern**: The handler is installed at analyze start and removed in a finally block, preventing handler leaks across multiple runs.
+- **Dry-run cost estimates use sonnet pricing**: The dry-run report assumes sonnet pricing ($3/$15 per 1M tokens) and estimates output as ~20% of input tokens. These are rough projections, not precise calculations.
+
+### Deviations
+
+None.
+
+### Notes for next phase
+
+- The project is now feature-complete with all commands functional: analyze, survey, extract, reconcile, synthesize, dry-run, status.
+- All 150 tests pass with zero failures and zero lint warnings.
+- The `--max-budget-usd` flag provides per-invocation budget ceiling enforcement. The budget is checked by reading `budget.json` before each Claude call, so it has file I/O overhead proportional to invocation count.
+- Resume works at both phase level (completed phases skipped) and task level (completed tasks within phases skipped by individual phase executors).
+- The dry-run cost estimate is approximate — it uses token counts from the extraction plan and sonnet pricing. Actual costs will vary based on model choice and output length.

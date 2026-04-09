@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- Implement complete extraction pipeline for codebase analysis
+- Add Phase 2 extraction pipeline documentation and handoff notes
+
 ## 0.1.0
 
 - Implement foundation and survey pipeline with CLI scaffolding

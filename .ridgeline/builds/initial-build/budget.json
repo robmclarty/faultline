@@ -47,7 +47,19 @@
       "cacheCreationInputTokens": 56849,
       "durationMs": 202943,
       "timestamp": "2026-04-09T18:11:09.755Z"
+    },
+    {
+      "phase": "01-foundation-and-survey",
+      "role": "builder",
+      "attempt": 0,
+      "costUsd": 6.993007999999999,
+      "inputTokens": 135,
+      "outputTokens": 66248,
+      "cacheReadInputTokens": 9205616,
+      "cacheCreationInputTokens": 117332,
+      "durationMs": 1321839,
+      "timestamp": "2026-04-09T18:47:40.944Z"
     }
   ],
-  "totalCostUsd": 2.3537444
+  "totalCostUsd": 9.3467524
 }

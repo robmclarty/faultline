@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 
 import type { LearningEntry, LearningsActive, LearningsLog } from '../types.js'
+import { validate_token_ceiling } from './validation.js'
 
 ///////////////////////////////////////////////////////////////// Constants //
 
@@ -100,10 +101,13 @@ export const append_learnings = async (
   active.total_tokens = active.entries.reduce((sum, e) => sum + e.tokens_est, 0)
 
   const compressed = compress_active_set(active)
+  const serialized = JSON.stringify(compressed, null, 2)
+
+  validate_token_ceiling(serialized, LEARNINGS_FILE)
 
   await writeFile(
     join(output_dir, LEARNINGS_FILE),
-    JSON.stringify(compressed, null, 2),
+    serialized,
     'utf-8'
   )
 }

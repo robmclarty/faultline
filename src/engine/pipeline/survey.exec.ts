@@ -157,10 +157,12 @@ export const execute_survey = async (config: FaultlineConfig): Promise<void> => 
 
     await write_domain_review(output_dir, review)
 
+    let final_domains = domains
+
     if (!review.passed) {
       log_info('Domain review found issues, retrying domain mapping with feedback')
 
-      const retry_domains = await retry_domain_mapping(
+      final_domains = await retry_domain_mapping(
         classified_index,
         tree,
         review,
@@ -168,10 +170,10 @@ export const execute_survey = async (config: FaultlineConfig): Promise<void> => 
         output_dir
       )
 
-      await write_domains(output_dir, retry_domains)
+      await write_domains(output_dir, final_domains)
 
       const retry_review = await review_domains(
-        retry_domains,
+        final_domains,
         classified_index,
         config,
         output_dir
@@ -186,9 +188,6 @@ export const execute_survey = async (config: FaultlineConfig): Promise<void> => 
     }
 
     update_task_status(phase, 'domain_review', 'Domain review', 'completed')
-
-    // Read final domains for subsequent steps
-    const final_domains = domains
 
     // Step 1d: Extraction plan (harness-only)
     log_step('1d', 'Generating extraction plan')

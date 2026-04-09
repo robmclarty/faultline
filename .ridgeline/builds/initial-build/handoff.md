@@ -116,3 +116,71 @@ None.
 ### Notes for next phase
 
 - Projects can now place a `config.json` in their `.faultline/` directory to set persistent configuration (model, timeout, budget, etc.) that applies across runs without CLI flags.
+
+## Phase 2: Extraction Pipeline
+
+### What was built
+
+**Types & config:**
+
+- `ExtractionReview` type added to `types.ts` with `passed`, `issues`, `suggestions`, `uncovered_files` fields
+- `FaultlineConfig` extended with `concurrency` (default 3) and `skip_deep_pass` (default false) fields
+- Config defaults updated in `stores/config.ts`
+
+**Agent templates (src/agents/extract/):**
+
+- `system.md` — Full extraction prompt with domain context, architecture digest, learnings, handoff context, and structured output format (Business Rules, Data Invariants, Gaps, Cross-Domain Observations, Notes for Next Batch)
+- `consolidate.md` — Consolidation prompt merging batch notes with aggressive compression rules for >15k token inputs, optional review feedback injection
+- `review.md` — Adversarial review prompt checking file coverage, abstraction violations (framework keywords from manifest), cross-domain references, and gap plausibility
+- `deep_pass.md` — Deep extraction prompt targeting missed rules, implicit invariants, and edge cases
+- `validate_feedback.md` — Validation retry prompt for uncovered source files
+
+**Stores:**
+
+- `stores/extractions.ts` — Rewritten with zero-padded batch filenames (`batch-00.notes.md`), plus `write/read_extraction_review`, `write/read_deep_pass_notes`
+- `stores/survey.ts` — Added `read_extraction_plan` and `read_architecture` for extraction phase consumption
+- Barrel `stores/index.ts` updated to export all new functions
+
+**Pipeline (`engine/pipeline/extract.exec.ts`):**
+
+- Full extraction orchestration with domain-level parallel execution and batch-level serial execution
+- Multi-batch handoff: prior batch notes compressed to ~2k tokens (8k chars) passed as context
+- Consolidation: all batch notes merged into `consolidated.notes.md` per domain
+- Review: sonnet-model review checking file coverage, abstraction violations, gap plausibility
+- Validation: `find_missing_files` checks basename grep; retries up to `max_retries` with feedback
+- Review retry: on failed review, re-consolidates once with review feedback appended
+- Deep pass: for priority ≤ 2 domains with suggestions, re-reads uncovered/key files and merges findings
+- Learnings: cross-domain observations extracted from consolidated notes and appended to learnings system
+- Process registry: parallel execution respects `--concurrency` limit using a domain queue with Promise.race
+- State tracking: each extraction task tracked individually in state.json for resume support
+
+**CLI (`commands/extract.ts`):**
+
+- Fully wired with `--model`, `--concurrency`, `--max-retries`, `--skip-deep-pass`, `--timeout`, `--verbose` flags
+
+**Tests (28 new, 111 total):**
+
+- `stores/__tests__/extractions.test.ts` (10 tests): batch notes, consolidated notes, extraction review, deep pass notes read/write
+- `engine/pipeline/__tests__/extract.exec.test.ts` (18 tests): single-batch extraction, multi-batch serial with handoff, review feedback loop (pass/fail), deep pass triggering (4 scenarios), parallel concurrency, learnings append flow, learnings filtering, consolidated notes format, resume support
+
+### Decisions
+
+- **Batch filenames use zero-padded format** (`batch-00.notes.md` instead of `batch_0.md`) — matches the `batch-NN.notes.md` format specified in acceptance criteria
+- **Consolidated notes filename**: `consolidated.notes.md` (per spec) instead of the Phase 1 stub's `consolidated.md`
+- **High-priority threshold**: priority ≤ 2 (not just priority === 1) for deep pass triggering — domains with priority 1 or 2 are considered high-priority
+- **Framework keywords extracted from all manifest dependencies** (both runtime and dev) — dev dependencies like test frameworks can also indicate abstraction violations
+- **Review invocation failures** are gracefully handled by returning a passed review, allowing extraction to proceed without blocking on transient Claude errors
+- **Validation uses basename matching** (case-insensitive) rather than full path matching — simpler and more robust since Claude may reference files by name only
+
+### Deviations
+
+- The spec mentions `extraction review detects abstraction violations by scanning for framework keywords from manifest.json` — the implementation passes these keywords to Claude as part of the review prompt rather than doing harness-side string scanning. This is more robust since Claude can understand contextual usage vs. coincidental keyword matches.
+- Batch notes filenames changed from Phase 1's `batch_0.md` pattern to `batch-00.notes.md` to match the acceptance criteria's `batch-NN.notes.md` format. This is a breaking change if any Phase 1 artifacts used the old format (none did in practice since extraction was a stub).
+
+### Notes for next phase
+
+- The `engine/pipeline/synthesize.exec.ts` is still a stub. It should consume the consolidated notes from `.faultline/extractions/<domain>/consolidated.notes.md`, the architecture description, and the learnings system to produce the final ridgeline-compatible output.
+- The learnings system now has entries from both survey (architecture cross-cutting observations) and extraction (cross-domain observations per domain). The synthesis phase should use `read_active_learnings()` for the full bounded set.
+- The `reconcile` phase (between extract and synthesize) is still a stub. If it's needed, it should read all consolidated notes and resolve cross-domain contradictions/overlaps before synthesis.
+- The `output_dir` pattern for extraction artifacts is `.faultline/extractions/<domain_id>/` containing: `batch-NN.notes.md`, `consolidated.notes.md`, `review.json`, and optionally `deep_pass.notes.md`.
+- The `--concurrency` flag defaults to 3 and can be overridden via CLI or `config.json`.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Add analyze command with dry-run, status, and budget enforcement
+- Add within-phase resume for survey and extract pipelines
+- Comprehensive documentation for all commands and pipeline
+
 ## 0.3.0
 
 - Implement reconciliation and synthesis pipelines

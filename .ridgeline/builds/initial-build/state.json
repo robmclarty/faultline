@@ -5,7 +5,7 @@
     "shape": "complete",
     "spec": "complete",
     "plan": "complete",
-    "build": "pending"
+    "build": "complete"
   },
   "phases": [
     {
@@ -40,12 +40,12 @@
     },
     {
       "id": "04-integration-and-documentation",
-      "status": "reviewing",
+      "status": "complete",
       "checkpointTag": "ridgeline/checkpoint/initial-build/04-integration-and-documentation",
-      "completionTag": null,
+      "completionTag": "ridgeline/phase/initial-build/04-integration-and-documentation",
       "retries": 0,
-      "duration": null,
-      "completedAt": null,
+      "duration": 1654190,
+      "completedAt": "2026-04-09T19:59:35.836Z",
       "failedAt": null
     }
   ]

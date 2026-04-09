@@ -1,5 +1,18 @@
 # Module Reference
 
+## engine/pipeline/analyze.exec.ts
+
+End-to-end pipeline orchestrator. Chains survey → extract → reconcile →
+synthesize with:
+
+- **Resume support**: Skips completed phases by checking `is_phase_completed()`
+- **Budget ceiling**: Sets global budget limit via `set_budget_limit()`, catches
+  `BudgetExceededError` from any phase to save state and exit gracefully
+- **Skip flags**: `--skip-reconcile` skips Phase 2.5, `--skip-deep-pass` is
+  forwarded to the extract phase
+- **SIGINT handling**: Installs a handler that saves state.json before exiting
+  with code 130. The handler is removed after pipeline completion.
+
 ## engine/token_estimator.ts
 
 Converts file sizes to estimated token counts. Uses two divisors:
@@ -42,6 +55,8 @@ Manages Claude subprocess lifecycle:
 - **Timeout**: Kills the child process after the configured timeout
 - **Retry**: Exponential backoff on non-zero exit codes (up to max_retries)
 - **Cost tracking**: Parses token counts from stderr, logs to budget.json
+- **Budget ceiling**: Checks cumulative cost before each invocation, throws
+  `BudgetExceededError` when the limit is exceeded
 - **Process registry**: Tracks active processes for graceful SIGINT cleanup
 
 ## engine/claude/prompt_loader.ts
@@ -53,7 +68,7 @@ placeholders. Variables not found in the provided map are left as-is.
 
 Extracts structured data from Claude's mixed text/code output:
 
-- **JSON extraction**: Tries fenced `\`\`\`json` blocks, then unfenced code
+- **JSON extraction**: Tries fenced `` ```json `` blocks, then unfenced code
   blocks, then raw JSON detection
 - **Markdown section extraction**: Finds sections by heading name, respects
   heading depth
@@ -69,7 +84,30 @@ Pipeline state persistence. The state file tracks:
 - Error messages for failed tasks
 
 This enables resume: if the pipeline crashes mid-survey, rerunning picks up
-from the last completed step.
+from the last completed step. The `find_resumable_task()` function returns the
+first pending or failed task within a phase.
+
+## stores/budget.ts
+
+Per-invocation cost tracking. Each Claude invocation is logged with:
+
+- Timestamp, phase, task name
+- Model used
+- Input and output token counts
+- Estimated cost based on published pricing
+
+Model-specific rates: opus ($15/$75 per 1M), sonnet ($3/$15), haiku ($0.25/$1.25).
+
+## stores/config.ts
+
+Three-tier configuration resolution:
+
+1. **Defaults** — Hardcoded baseline values
+2. **config.json** — File in `.faultline/config.json` for persistent overrides
+3. **CLI flags** — Command-line arguments take highest precedence
+
+The `resolve_config()` function merges all three tiers, stripping undefined
+values to prevent accidental overrides.
 
 ## stores/learnings.ts
 
@@ -126,13 +164,41 @@ Enforces the 5k token ceiling (~20k characters) on any file intended for
 Claude consumption. This prevents accidentally sending oversized context
 that would degrade model performance.
 
+## engine/pipeline/survey.exec.ts
+
+Survey phase with seven steps:
+
+1. **1a: File indexing** — Recursive walk with glob filtering
+2. **1a': Manifest parsing** — package.json (extensible to others)
+3. **1a'': Tree generation** — Text-based directory tree
+4. **1b: Classification** — Claude-based file classification in batches
+5. **1c: Domain mapping** — Claude identifies logical domains
+6. **1c': Domain review** — Adversarial review with retry on failure
+7. **1d: Extraction plan** — Greedy batch packing per domain
+8. **1e: Architecture** — Claude describes system architecture
+9. **1e': Learnings** — Extract cross-cutting observations
+
+## engine/pipeline/extract.exec.ts
+
+Extraction phase with parallel domain processing:
+
+1. **2a: Batch extraction** — Serial within domain, parallel across domains
+   (up to `--concurrency` limit). Each batch includes handoff context from
+   the prior batch.
+2. **2b: Consolidation** — Merge all batch notes into one document per domain
+3. **2c: Review** — Check file coverage, abstraction violations, gap plausibility
+4. **2c': Validation** — Re-extract uncovered files and re-consolidate
+5. **2c'': Retry** — Re-consolidate with review feedback if review failed
+6. **2d: Deep pass** — For priority ≤ 2 domains with suggestions
+7. **2e: Learnings** — Extract cross-domain observations
+
 ## engine/pipeline/reconcile.exec.ts
 
 Cross-domain reconciliation pipeline:
 
 1. **Graph building**: Constructs a domain interaction graph from declared
    dependencies (domains.json `depends_on`) plus grep-based reference
-   detection in consolidated notes
+   detection in consolidated notes. Declared edges weight 2, observed weight 1.
 2. **Cluster identification**: Finds connected components via BFS, splits
    components exceeding 5 domains by removing weakest edges
 3. **Per-cluster reconciliation**: Sends all constituent domains' consolidated
@@ -160,3 +226,9 @@ Synthesis pipeline with seven steps:
    and reconciliation insights
 6. **3e: Constraints** — Extraction from manifests and config files
 7. **3f: Taste** — Extraction from linter configs and source samples
+
+## ui/reporter.ts
+
+Terminal formatting for pipeline status, cost summaries, survey summaries,
+and dry-run reports. Includes duration formatting that converts elapsed
+milliseconds to human-readable strings (e.g., "2m 30s", "1h 15m").

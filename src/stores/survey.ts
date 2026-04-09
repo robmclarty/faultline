@@ -113,6 +113,24 @@ export const write_tree = async (output_dir: string, tree: string): Promise<void
 }
 
 /**
+ * Read Tree
+ *
+ * Reads the directory tree listing from disk.
+ *
+ * @param output_dir - The .faultline directory path.
+ * @returns The tree text, or null if not found.
+ */
+export const read_tree = async (output_dir: string): Promise<string | null> => {
+  const path = join(output_dir, SURVEY_DIR, 'tree.txt')
+
+  if (!existsSync(path)) {
+    return null
+  }
+
+  return readFile(path, 'utf-8')
+}
+
+/**
  * Write Domains
  *
  * Persists the domain classification results.

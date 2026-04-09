@@ -21,6 +21,7 @@ export {
   write_manifest,
   read_manifest,
   write_tree,
+  read_tree,
   write_domains,
   read_domains,
   write_domain_review,

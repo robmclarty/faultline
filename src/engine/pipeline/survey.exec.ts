@@ -8,12 +8,16 @@ import { load_prompt } from '../claude/prompt_loader.js'
 import { extract_json_block, extract_markdown_body } from '../claude/response_parser.js'
 import {
   write_file_index,
+  read_file_index,
   write_manifest,
   write_tree,
+  read_tree,
   write_domains,
+  read_domains,
   write_domain_review,
   write_extraction_plan,
   write_architecture,
+  read_architecture,
   write_state,
   init_state,
   read_state,
@@ -34,6 +38,8 @@ import {
 import type {
   FaultlineConfig,
   FileIndex,
+  PhaseState,
+  PipelineState,
   Domain,
   DomainReview,
   ExtractionPlan,
@@ -44,6 +50,316 @@ import type {
 
 const CLASSIFY_BATCH_SIZE = 8_000
 
+/////////////////////////////////////////////////////////////////// Types //
+
+type SurveyContext = {
+  config: FaultlineConfig
+  output_dir: string
+  phase: PhaseState
+  state: PipelineState
+}
+
+///////////////////////////////////////////////////////////////// Helpers //
+
+/**
+ * Checks whether a task within a phase has already been completed.
+ */
+const is_task_done = (phase: PhaseState, task_id: string): boolean => {
+  const task = phase.tasks.find(t => t.id === task_id)
+
+  return task?.status === 'completed'
+}
+
+/**
+ * Marks a task as running and persists state.
+ */
+const begin_task = async (
+  ctx: SurveyContext,
+  task_id: string,
+  task_name: string
+): Promise<void> => {
+  update_task_status(ctx.phase, task_id, task_name, 'running')
+  await write_state(ctx.output_dir, ctx.state)
+}
+
+/**
+ * Step 1a: Walk the filesystem and build the file index. On resume, reloads
+ * the persisted index instead.
+ */
+const step_file_index = async (ctx: SurveyContext): Promise<FileIndex> => {
+  if (is_task_done(ctx.phase, 'file_index')) {
+    log_info('Resuming: skipping file indexing (already completed)')
+
+    return (await read_file_index(ctx.output_dir)) ?? []
+  }
+
+  log_step('1a', 'Indexing files')
+  await begin_task(ctx, 'file_index', 'File indexing')
+
+  const file_index = await walk_files(
+    ctx.config.target_dir,
+    ctx.config.include,
+    ctx.config.exclude
+  )
+
+  await write_file_index(ctx.output_dir, file_index)
+  log_success(`Indexed ${file_index.length} files`)
+  update_task_status(ctx.phase, 'file_index', 'File indexing', 'completed')
+
+  return file_index
+}
+
+/**
+ * Step 1a': Parse the dependency manifest (package.json, etc.).
+ */
+const step_manifest = async (ctx: SurveyContext): Promise<void> => {
+  if (is_task_done(ctx.phase, 'manifest')) {
+    log_info('Resuming: skipping manifest parsing (already completed)')
+
+    return
+  }
+
+  log_step('1a\'', 'Parsing dependency manifest')
+  await begin_task(ctx, 'manifest', 'Manifest parsing')
+
+  const manifest = await parse_manifest(ctx.config.target_dir)
+
+  if (manifest) {
+    await write_manifest(ctx.output_dir, manifest)
+    log_success(
+      `Parsed manifest: ${manifest.name}@${manifest.version} ` +
+      `(${manifest.dependencies.length} dependencies)`
+    )
+  } else {
+    log_info('No recognized dependency manifest found')
+  }
+
+  update_task_status(ctx.phase, 'manifest', 'Manifest parsing', 'completed')
+}
+
+/**
+ * Step 1a'': Generate directory tree from file index.
+ */
+const step_tree = async (
+  ctx: SurveyContext,
+  file_index: FileIndex
+): Promise<string> => {
+  if (is_task_done(ctx.phase, 'tree')) {
+    log_info('Resuming: skipping tree generation (already completed)')
+
+    return (await read_tree(ctx.output_dir)) ?? ''
+  }
+
+  log_step('1a\'\'', 'Generating directory tree')
+  await begin_task(ctx, 'tree', 'Tree generation')
+
+  const tree = generate_tree(file_index)
+
+  await write_tree(ctx.output_dir, tree)
+  log_success('Generated directory tree')
+  update_task_status(ctx.phase, 'tree', 'Tree generation', 'completed')
+
+  return tree
+}
+
+/**
+ * Step 1b: Classify files via Claude. On resume, reloads the classified index.
+ */
+const step_classify = async (
+  ctx: SurveyContext,
+  file_index: FileIndex
+): Promise<FileIndex> => {
+  if (is_task_done(ctx.phase, 'classify')) {
+    log_info('Resuming: skipping file classification (already completed)')
+
+    return (await read_file_index(ctx.output_dir)) ?? file_index
+  }
+
+  log_step('1b', 'Classifying files')
+  await begin_task(ctx, 'classify', 'File classification')
+
+  const classified_index = await classify_files(file_index, ctx.config, ctx.output_dir)
+
+  await write_file_index(ctx.output_dir, classified_index)
+  log_success('Files classified')
+  update_task_status(ctx.phase, 'classify', 'File classification', 'completed')
+
+  return classified_index
+}
+
+/**
+ * Step 1c: Map files to domains via Claude.
+ */
+const step_domains = async (
+  ctx: SurveyContext,
+  classified_index: FileIndex,
+  tree: string
+): Promise<Domain[]> => {
+  if (is_task_done(ctx.phase, 'domains')) {
+    log_info('Resuming: skipping domain mapping (already completed)')
+
+    return (await read_domains(ctx.output_dir)) ?? []
+  }
+
+  log_step('1c', 'Mapping domains')
+  await begin_task(ctx, 'domains', 'Domain mapping')
+
+  const domains = await map_domains(classified_index, tree, ctx.config, ctx.output_dir)
+
+  await write_domains(ctx.output_dir, domains)
+  log_success(`Mapped ${domains.length} domains`)
+  update_task_status(ctx.phase, 'domains', 'Domain mapping', 'completed')
+
+  return domains
+}
+
+/**
+ * Step 1c': Adversarial review of domain assignments with optional retry.
+ */
+const step_domain_review = async (
+  ctx: SurveyContext,
+  domains: Domain[],
+  classified_index: FileIndex,
+  tree: string
+): Promise<Domain[]> => {
+  if (is_task_done(ctx.phase, 'domain_review')) {
+    log_info('Resuming: skipping domain review (already completed)')
+
+    return (await read_domains(ctx.output_dir)) ?? domains
+  }
+
+  log_step('1c\'', 'Reviewing domains')
+  await begin_task(ctx, 'domain_review', 'Domain review')
+
+  const review = await review_domains(domains, classified_index, ctx.config, ctx.output_dir)
+
+  await write_domain_review(ctx.output_dir, review)
+
+  let final_domains = domains
+
+  if (!review.passed) {
+    log_info('Domain review found issues, retrying domain mapping with feedback')
+
+    final_domains = await retry_domain_mapping(
+      classified_index,
+      tree,
+      review,
+      ctx.config,
+      ctx.output_dir
+    )
+
+    await write_domains(ctx.output_dir, final_domains)
+
+    const retry_review = await review_domains(
+      final_domains,
+      classified_index,
+      ctx.config,
+      ctx.output_dir
+    )
+
+    await write_domain_review(ctx.output_dir, retry_review)
+    log_success(
+      `Domain review ${retry_review.passed ? 'passed' : 'completed with remaining issues'}`
+    )
+  } else {
+    log_success('Domain review passed')
+  }
+
+  update_task_status(ctx.phase, 'domain_review', 'Domain review', 'completed')
+
+  return final_domains
+}
+
+/**
+ * Step 1d: Build the extraction plan from domains and classified index.
+ */
+const step_extraction_plan = async (
+  ctx: SurveyContext,
+  final_domains: Domain[],
+  classified_index: FileIndex
+): Promise<void> => {
+  if (is_task_done(ctx.phase, 'extraction_plan')) {
+    log_info('Resuming: skipping extraction plan (already completed)')
+
+    return
+  }
+
+  log_step('1d', 'Generating extraction plan')
+  await begin_task(ctx, 'extraction_plan', 'Extraction plan')
+
+  const tasks = build_extraction_tasks(
+    final_domains,
+    classified_index,
+    ctx.config.context_budget
+  )
+
+  const plan: ExtractionPlan = {
+    context_budget: ctx.config.context_budget,
+    total_batches: tasks.length,
+    tasks
+  }
+
+  await write_extraction_plan(ctx.output_dir, plan)
+  log_success(`Generated extraction plan with ${tasks.length} batches`)
+  update_task_status(ctx.phase, 'extraction_plan', 'Extraction plan', 'completed')
+}
+
+/**
+ * Step 1e: Generate architecture description via Claude.
+ */
+const step_architecture = async (
+  ctx: SurveyContext,
+  classified_index: FileIndex,
+  final_domains: Domain[],
+  tree: string
+): Promise<string> => {
+  if (is_task_done(ctx.phase, 'architecture')) {
+    log_info('Resuming: skipping architecture description (already completed)')
+
+    return (await read_architecture(ctx.output_dir)) ?? ''
+  }
+
+  log_step('1e', 'Generating architecture description')
+  await begin_task(ctx, 'architecture', 'Architecture description')
+
+  const arch_md = await describe_architecture(
+    classified_index,
+    final_domains,
+    tree,
+    ctx.config,
+    ctx.output_dir
+  )
+
+  await write_architecture(ctx.output_dir, arch_md)
+  log_success('Generated architecture description')
+  update_task_status(ctx.phase, 'architecture', 'Architecture description', 'completed')
+
+  return arch_md
+}
+
+/**
+ * Step 1e': Extract cross-cutting learnings from the architecture description.
+ */
+const step_learnings = async (
+  ctx: SurveyContext,
+  arch_md: string
+): Promise<void> => {
+  if (is_task_done(ctx.phase, 'learnings')) {
+    log_info('Resuming: skipping learnings extraction (already completed)')
+
+    return
+  }
+
+  log_step('1e\'', 'Extracting learnings')
+  await begin_task(ctx, 'learnings', 'Learnings extraction')
+
+  const learnings = extract_architecture_learnings(arch_md)
+
+  await append_learnings(ctx.output_dir, learnings)
+  log_success(`Extracted ${learnings.length} learnings`)
+  update_task_status(ctx.phase, 'learnings', 'Learnings extraction', 'completed')
+}
+
 ///////////////////////////////////////////////////////////////////////// API //
 
 /**
@@ -51,7 +367,8 @@ const CLASSIFY_BATCH_SIZE = 8_000
  *
  * Runs the full survey pipeline: file indexing, manifest parsing, tree
  * generation, file classification, domain mapping, domain review, extraction
- * plan generation, and architecture description.
+ * plan generation, and architecture description. Supports resume from any
+ * completed task.
  *
  * @param config - The resolved faultline configuration.
  */
@@ -71,172 +388,23 @@ export const execute_survey = async (config: FaultlineConfig): Promise<void> => 
   phase.started_at = new Date().toISOString()
   await write_state(output_dir, state)
 
+  const ctx: SurveyContext = { config, output_dir, phase, state }
+
   try {
-    // Step 1a: File indexing (harness-only)
-    log_step('1a', 'Indexing files')
-    update_task_status(phase, 'file_index', 'File indexing', 'running')
-    await write_state(output_dir, state)
+    const file_index = await step_file_index(ctx)
 
-    const file_index = await walk_files(
-      config.target_dir,
-      config.include,
-      config.exclude
-    )
+    await step_manifest(ctx)
 
-    await write_file_index(output_dir, file_index)
-    log_success(`Indexed ${file_index.length} files`)
-    update_task_status(phase, 'file_index', 'File indexing', 'completed')
+    const tree = await step_tree(ctx, file_index)
+    const classified_index = await step_classify(ctx, file_index)
+    const domains = await step_domains(ctx, classified_index, tree)
+    const final_domains = await step_domain_review(ctx, domains, classified_index, tree)
 
-    // Step 1a': Manifest parsing
-    log_step('1a\'', 'Parsing dependency manifest')
-    update_task_status(phase, 'manifest', 'Manifest parsing', 'running')
-    await write_state(output_dir, state)
+    await step_extraction_plan(ctx, final_domains, classified_index)
 
-    const manifest = await parse_manifest(config.target_dir)
+    const arch_md = await step_architecture(ctx, classified_index, final_domains, tree)
 
-    if (manifest) {
-      await write_manifest(output_dir, manifest)
-      log_success(
-        `Parsed manifest: ${manifest.name}@${manifest.version} ` +
-        `(${manifest.dependencies.length} dependencies)`
-      )
-    } else {
-      log_info('No recognized dependency manifest found')
-    }
-
-    update_task_status(phase, 'manifest', 'Manifest parsing', 'completed')
-
-    // Step 1a'': Tree generation
-    log_step('1a\'\'', 'Generating directory tree')
-    update_task_status(phase, 'tree', 'Tree generation', 'running')
-    await write_state(output_dir, state)
-
-    const tree = generate_tree(file_index)
-
-    await write_tree(output_dir, tree)
-    log_success('Generated directory tree')
-    update_task_status(phase, 'tree', 'Tree generation', 'completed')
-
-    // Step 1b: File classification (Claude)
-    log_step('1b', 'Classifying files')
-    update_task_status(phase, 'classify', 'File classification', 'running')
-    await write_state(output_dir, state)
-
-    const classified_index = await classify_files(
-      file_index,
-      config,
-      output_dir
-    )
-
-    await write_file_index(output_dir, classified_index)
-    log_success('Files classified')
-    update_task_status(phase, 'classify', 'File classification', 'completed')
-
-    // Step 1c: Domain mapping (Claude)
-    log_step('1c', 'Mapping domains')
-    update_task_status(phase, 'domains', 'Domain mapping', 'running')
-    await write_state(output_dir, state)
-
-    const domains = await map_domains(classified_index, tree, config, output_dir)
-
-    await write_domains(output_dir, domains)
-    log_success(`Mapped ${domains.length} domains`)
-    update_task_status(phase, 'domains', 'Domain mapping', 'completed')
-
-    // Step 1c': Domain review (Claude, adversarial)
-    log_step('1c\'', 'Reviewing domains')
-    update_task_status(phase, 'domain_review', 'Domain review', 'running')
-    await write_state(output_dir, state)
-
-    const review = await review_domains(
-      domains,
-      classified_index,
-      config,
-      output_dir
-    )
-
-    await write_domain_review(output_dir, review)
-
-    let final_domains = domains
-
-    if (!review.passed) {
-      log_info('Domain review found issues, retrying domain mapping with feedback')
-
-      final_domains = await retry_domain_mapping(
-        classified_index,
-        tree,
-        review,
-        config,
-        output_dir
-      )
-
-      await write_domains(output_dir, final_domains)
-
-      const retry_review = await review_domains(
-        final_domains,
-        classified_index,
-        config,
-        output_dir
-      )
-
-      await write_domain_review(output_dir, retry_review)
-      log_success(
-        `Domain review ${retry_review.passed ? 'passed' : 'completed with remaining issues'}`
-      )
-    } else {
-      log_success('Domain review passed')
-    }
-
-    update_task_status(phase, 'domain_review', 'Domain review', 'completed')
-
-    // Step 1d: Extraction plan (harness-only)
-    log_step('1d', 'Generating extraction plan')
-    update_task_status(phase, 'extraction_plan', 'Extraction plan', 'running')
-    await write_state(output_dir, state)
-
-    const tasks = build_extraction_tasks(
-      final_domains,
-      classified_index,
-      config.context_budget
-    )
-
-    const plan: ExtractionPlan = {
-      context_budget: config.context_budget,
-      total_batches: tasks.length,
-      tasks
-    }
-
-    await write_extraction_plan(output_dir, plan)
-    log_success(`Generated extraction plan with ${tasks.length} batches`)
-    update_task_status(phase, 'extraction_plan', 'Extraction plan', 'completed')
-
-    // Step 1e: Architecture description (Claude)
-    log_step('1e', 'Generating architecture description')
-    update_task_status(phase, 'architecture', 'Architecture description', 'running')
-    await write_state(output_dir, state)
-
-    const arch_md = await describe_architecture(
-      classified_index,
-      final_domains,
-      tree,
-      config,
-      output_dir
-    )
-
-    await write_architecture(output_dir, arch_md)
-    log_success('Generated architecture description')
-    update_task_status(phase, 'architecture', 'Architecture description', 'completed')
-
-    // Step 1e': Extract learnings from architecture
-    log_step('1e\'', 'Extracting learnings')
-    update_task_status(phase, 'learnings', 'Learnings extraction', 'running')
-    await write_state(output_dir, state)
-
-    const learnings = extract_architecture_learnings(arch_md)
-
-    await append_learnings(output_dir, learnings)
-    log_success(`Extracted ${learnings.length} learnings`)
-    update_task_status(phase, 'learnings', 'Learnings extraction', 'completed')
+    await step_learnings(ctx, arch_md)
 
     // Mark survey complete
     mark_phase_completed(phase)

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import {
   init_state,
   get_or_create_phase,
+  update_task_status,
   mark_phase_completed,
   write_state,
   read_state,
@@ -366,6 +367,181 @@ describe('execute_analyze', () => {
       // Verify invoke_claude was called for synthesis phase work
       expect(mock_invoke).toHaveBeenCalled()
       expect(mock_invoke.mock.calls.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('within-phase resume', () => {
+    it('skips completed tasks within survey phase on resume', async () => {
+      // Set up a partially completed survey: file_index, manifest, tree,
+      // and classify are done, but domains onwards are not
+      const state = init_state(source_dir)
+      const phase = get_or_create_phase(state, 'survey')
+
+      phase.status = 'running'
+      phase.started_at = new Date().toISOString()
+      update_task_status(phase, 'file_index', 'File indexing', 'completed')
+      update_task_status(phase, 'manifest', 'Manifest parsing', 'completed')
+      update_task_status(phase, 'tree', 'Tree generation', 'completed')
+      update_task_status(phase, 'classify', 'File classification', 'completed')
+      await write_state(output_dir, state)
+
+      // Write artifacts that completed tasks would have produced
+      await write_file_index(output_dir, [])
+      await write_tree(output_dir, '.')
+      await write_manifest(output_dir, {
+        name: 'test-app',
+        version: '1.0.0',
+        type: 'npm',
+        dependencies: []
+      })
+
+      // Create source dir
+      await mkdir(join(source_dir, 'src', 'auth'), { recursive: true })
+      await writeFile(
+        join(source_dir, 'src', 'auth', 'index.js'),
+        'module.exports = { login() {} }',
+        'utf-8'
+      )
+
+      // Mock remaining Claude calls: domains, review, architecture
+      const domains_json = JSON.stringify([make_domain('auth', 'Authentication', 1)])
+      const review_json = JSON.stringify({
+        passed: true,
+        issues: [],
+        suggestions: [],
+        uncovered_files: []
+      })
+
+      mock_invoke
+        .mockResolvedValueOnce(make_result(`\`\`\`json\n${domains_json}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(`\`\`\`json\n${review_json}\n\`\`\``))
+        .mockResolvedValueOnce(make_result('# Architecture\n\n## Cross-cutting\n\n- Obs'))
+        .mockResolvedValue(make_result('Content.'))
+
+      await execute_analyze(make_config())
+
+      // invoke_claude should NOT have been called for classify (it was completed)
+      // First call should be for domain_mapping, not classify_batch_0
+      const first_call = mock_invoke.mock.calls[0]
+      const first_task = first_call[0] as { task?: string }
+
+      expect(first_task.task).not.toContain('classify')
+      expect(first_task.task).toBe('domain_mapping')
+
+      // Verify survey completed
+      const final_state = await read_state(output_dir)
+
+      expect(final_state!.phases.find(p => p.phase === 'survey')?.status).toBe('completed')
+    })
+
+    it('skips completed extraction tasks within extract phase on resume', async () => {
+      // Set up completed survey + partially completed extract with two domains
+      await setup_survey_completed()
+
+      const domains = [
+        make_domain('auth', 'Authentication', 1),
+        make_domain('tasks', 'Task Management', 2)
+      ]
+
+      await write_domains(output_dir, domains)
+      await write_extraction_plan(output_dir, {
+        context_budget: 150_000,
+        total_batches: 2,
+        tasks: [
+          {
+            domain_id: 'auth',
+            batch_index: 0,
+            files: ['src/auth/index.js'],
+            estimated_tokens: 1000
+          },
+          {
+            domain_id: 'tasks',
+            batch_index: 0,
+            files: ['src/tasks/index.js'],
+            estimated_tokens: 1000
+          }
+        ]
+      })
+
+      // Mark extract phase running with auth batch + consolidation + review
+      // + domain all completed
+      const state = (await read_state(output_dir))!
+      const extract_phase = get_or_create_phase(state, 'extract')
+
+      extract_phase.status = 'running'
+      extract_phase.started_at = new Date().toISOString()
+      update_task_status(
+        extract_phase, 'extract_auth_batch_0', 'Extract: Authentication batch 0', 'completed'
+      )
+      update_task_status(
+        extract_phase, 'consolidate_auth', 'Consolidate: Authentication', 'completed'
+      )
+      update_task_status(
+        extract_phase, 'review_auth', 'Review: Authentication', 'completed'
+      )
+      update_task_status(
+        extract_phase, 'domain_auth', 'Domain: Authentication', 'completed'
+      )
+      await write_state(output_dir, state)
+
+      // Write auth extraction artifacts (already done)
+      await write_consolidated_notes(
+        output_dir,
+        'auth',
+        '### Business Rules\n\n- Users must authenticate'
+      )
+
+      // Create source files for tasks domain
+      await mkdir(join(source_dir, 'src', 'tasks'), { recursive: true })
+      await writeFile(
+        join(source_dir, 'src', 'tasks', 'index.js'),
+        'module.exports = { create() {} }',
+        'utf-8'
+      )
+
+      // Mock Claude calls — should only be called for 'tasks' domain extraction
+      const batch_notes = '### Business Rules\n\n- Rule 1 (index.js)\n\n' +
+        '### Cross-Domain Observations\n\n- None'
+      const consolidated = '### Business Rules\n\n- Rule 1'
+      const review_json = JSON.stringify({
+        passed: true,
+        issues: [],
+        suggestions: [],
+        uncovered_files: []
+      })
+
+      mock_invoke
+        .mockResolvedValueOnce(make_result(batch_notes))
+        .mockResolvedValueOnce(make_result(consolidated))
+        .mockResolvedValueOnce(make_result(`\`\`\`json\n${review_json}\n\`\`\``))
+        .mockResolvedValue(make_result('Content.'))
+
+      await execute_analyze(make_config())
+
+      // All extract-phase invoke_claude calls should be for 'tasks', not 'auth'
+      const extract_calls = mock_invoke.mock.calls.filter(
+        c => (c[0] as { phase?: string }).phase === 'extract'
+      )
+      const auth_extract_calls = extract_calls.filter(
+        c => {
+          const task = (c[0] as { task?: string }).task ?? ''
+
+          return task.includes('auth')
+        }
+      )
+
+      expect(auth_extract_calls).toHaveLength(0)
+
+      // Verify tasks domain was actually extracted
+      const tasks_extract_calls = extract_calls.filter(
+        c => {
+          const task = (c[0] as { task?: string }).task ?? ''
+
+          return task.includes('tasks')
+        }
+      )
+
+      expect(tasks_extract_calls.length).toBeGreaterThan(0)
     })
   })
 })

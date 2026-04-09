@@ -127,6 +127,14 @@ export const execute_extract = async (config: FaultlineConfig): Promise<void> =>
           continue
         }
 
+        // Skip domains that are already fully completed (resume support)
+        const domain_task = phase.tasks.find(t => t.id === `domain_${domain_id}`)
+
+        if (domain_task?.status === 'completed') {
+          log_debug(`Skipping completed domain: ${domain_id}`)
+          continue
+        }
+
         const promise = process_domain(
           domain,
           tasks,

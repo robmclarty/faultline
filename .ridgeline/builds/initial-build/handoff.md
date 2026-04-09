@@ -95,3 +95,24 @@ None.
 ### Notes for next phase
 
 No changes from the original Phase 1 notes.
+
+## Phase 1 Retry 2: Fix Criterion 18 — Config.json middle tier
+
+### What was fixed
+
+1. **Criterion 18 — Config resolution three-tier chain** (`src/stores/config.ts`): Added `load_config_file()` helper that reads `config.json` from `<target_dir>/<output_dir>/config.json` if it exists. `resolve_config()` now merges three tiers: defaults → config.json → CLI flags. Gracefully handles missing, malformed, or non-object config files by returning empty overrides.
+
+2. **Config tests** (`src/stores/__tests__/config.test.ts`): Rewrote tests to cover all four required scenarios: (1) defaults alone, (2) config.json overrides defaults, (3) CLI flags override config.json, (4) missing config.json gracefully falls back. Also added edge cases for malformed JSON and non-object content. Total test count: 83 (up from 79).
+
+### Decisions
+
+- Config.json path is resolved as `<target_dir>/<output_dir>/config.json` using the output_dir from CLI overrides (or the default `.faultline`). This means config lives inside the pipeline output directory alongside state.json and budget.json.
+- Tests use `/tmp/faultline-config-test` with real filesystem operations rather than mocks to verify actual config.json loading behavior.
+
+### Deviations
+
+None.
+
+### Notes for next phase
+
+- Projects can now place a `config.json` in their `.faultline/` directory to set persistent configuration (model, timeout, budget, etc.) that applies across runs without CLI flags.

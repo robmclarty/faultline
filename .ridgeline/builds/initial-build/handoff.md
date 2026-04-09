@@ -184,3 +184,83 @@ None.
 - The `reconcile` phase (between extract and synthesize) is still a stub. If it's needed, it should read all consolidated notes and resolve cross-domain contradictions/overlaps before synthesis.
 - The `output_dir` pattern for extraction artifacts is `.faultline/extractions/<domain_id>/` containing: `batch-NN.notes.md`, `consolidated.notes.md`, `review.json`, and optionally `deep_pass.notes.md`.
 - The `--concurrency` flag defaults to 3 and can be overridden via CLI or `config.json`.
+
+## Phase 3: Reconciliation & Synthesis
+
+### What was built
+
+**Types & config:**
+
+- `CrossReferenceFinding`, `CrossReferenceCluster`, `CrossReferenceReport`, `DomainSummary` types added to `types.ts`
+- `FaultlineConfig` extended with `skip_reconcile` (default false) and `ridgeline_name` (default empty) fields
+- Config defaults updated in `stores/config.ts`
+
+**Agent templates:**
+
+- `reconcile/system.md` — Cross-domain reconciliation prompt analyzing clusters of related domains for duplications, contradictions, missing handoffs, shared invariants, and undeclared dependencies
+- `synthesize/summarize.md` — Domain summary compression prompt (~500 tokens per domain)
+- `synthesize/spec.md` — Per-domain spec writer with ridgeline format, multi-file split support via `SPEC_SPLIT` delimiters, cross-reference integration, and abstraction rules
+- `synthesize/overview.md` — System overview with system-wide invariants from reconciliation
+- `synthesize/architecture.md` — Architecture refinement with extraction insights
+- `synthesize/constraints.md` — Constraints extraction from manifests and configs
+- `synthesize/taste.md` — Taste extraction from linter configs and source samples
+
+**Stores:**
+
+- `stores/reconciliation.ts` — Read/write `cross_references.json` under `.faultline/extractions/`
+- `stores/synthesis.ts` — Read/write `domain_summaries.json` under `.faultline/synthesis/`
+- `stores/output.ts` — Rewritten to support nested subdirectories (`specs/auth/01-identity.md`), file reading, and ridgeline copy (`copy_output_to_ridgeline`)
+
+**Reconciliation pipeline (`engine/pipeline/reconcile.exec.ts`):**
+
+- `build_interaction_graph` — Builds domain interaction graph from declared dependencies (domains.json `depends_on`) plus grep-based reference detection in consolidated notes (checks domain id and label references)
+- `identify_clusters` — Finds connected components via BFS, filters isolated domains, splits components exceeding 5 domains by removing weakest edges (observed edges removed before declared)
+- Per-cluster Claude reconciliation with all constituent domains' consolidated notes + learnings
+- Cross-reference report output with typed findings
+- Findings appended to both `learnings.json` and `learnings.log.json`
+
+**Synthesis pipeline (`engine/pipeline/synthesize.exec.ts`):**
+
+- Step 3a: Domain summary compression via Claude (~500 tokens each)
+- Step 3b: Per-domain spec writing with ridgeline format (Overview, Requirements, Known Gaps, Relationships), multi-file split parsing, cross-reference integration
+- Step 3b': Harness-level abstraction enforcement scan detecting file extensions, framework names from manifest, long camelCase/snake_case identifiers (>15 chars), and path-like strings — flagged specs resubmitted once with violation feedback
+- Step 3c: Overview spec (`specs/00-overview.md`) documenting system-wide shared invariants from reconciliation
+- Step 3d: Architecture refinement from survey architecture + extraction insights
+- Step 3e: Constraints extraction from manifests, config files (tsconfig, eslint, prettier, docker, etc.)
+- Step 3f: Taste extraction from linter configs and representative source samples
+- Optional ridgeline output copy when `--ridgeline <name>` is specified
+- State tracking after each synthesis step
+
+**CLI commands:**
+
+- `commands/reconcile.ts` — Fully wired with `--model`, `--max-retries`, `--timeout`, `--verbose`
+- `commands/synthesize.ts` — Fully wired with `--model`, `--skip-reconcile`, `--ridgeline`, `--max-retries`, `--timeout`, `--verbose`
+
+**Tests (32 new, 143 total):**
+
+- `stores/__tests__/reconciliation.test.ts` (2 tests): cross-reference report write/read, null on missing
+- `stores/__tests__/synthesis.test.ts` (2 tests): domain summaries write/read, null on missing
+- `engine/pipeline/__tests__/reconcile.exec.test.ts` (11 tests): phase prerequisite checks, cross-reference production with cluster organization, isolated domain skipping, learnings append, state tracking, interaction graph building (declared + observed edges), cluster identification (grouping, isolation, oversized splitting)
+- `engine/pipeline/__tests__/synthesize.exec.test.ts` (17 tests): phase prerequisite checks, skip-reconcile behavior, domain summaries production, spec file output, overview/architecture/constraints/taste production, state tracking per step, ridgeline copy, abstraction enforcement triggering rewrite, spec split parsing, abstraction violation detection (extensions, frameworks, camelCase, snake_case, paths, clean content)
+
+**Docs:** Updated `docs/architecture.md` and `docs/modules.md` with reconcile/synthesize pipeline descriptions
+
+### Decisions
+
+- **Interaction graph edges have weights**: Declared dependencies get weight 2, observed references get weight 1. When splitting oversized components, weakest (observed) edges are removed first.
+- **Isolated domains skipped in reconciliation**: Domains with no edges in the interaction graph are not included in any cluster, since there's nothing to reconcile.
+- **Abstraction scan uses regex patterns**: File extensions, framework keywords (from manifest), long identifiers, and path-like strings are detected by the harness deterministically. Only flagged specs are sent back to Claude for rewriting.
+- **Spec multi-file decision delegated to Claude**: The spec writer prompt instructs Claude to use `SPEC_SPLIT` delimiters when a domain warrants multiple files. The harness parses these delimiters to create separate files.
+- **Config/linter file loading uses hardcoded candidate lists**: Rather than scanning the entire codebase, the synthesis pipeline checks well-known config file names (tsconfig, eslint, prettier, editorconfig, etc.) for constraints and taste extraction.
+
+### Deviations
+
+- The `_manifest` parameter in `scan_abstraction_violations` is currently unused (prefixed with underscore). Framework keywords are extracted separately and passed as a string array. The manifest reference is kept in the signature for potential future use (e.g., version-specific checks).
+
+### Notes for next phase
+
+- The full pipeline is now functional: `survey → extract → reconcile → synthesize`. The `analyze` command (which runs all phases) could now be wired up to call them in sequence.
+- The `--skip-reconcile` flag allows synthesis to run directly after extraction, producing specs without cross-reference integration.
+- Output structure: `.faultline/output/specs/<domain>/NN-<name>.md`, `.faultline/output/specs/00-overview.md`, `.faultline/output/architecture.md`, `.faultline/output/constraints.md`, `.faultline/output/taste.md`.
+- The abstraction enforcement scan may produce false positives (e.g., "class" detected as a long camelCase identifier). The one-retry approach limits the damage — remaining violations after retry are logged as warnings.
+- The `dry-run` and `status` commands are still stubs. They could be wired up to show cost estimates and pipeline status respectively.

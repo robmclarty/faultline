@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- Implement reconciliation and synthesis pipelines
+- Update architecture and module documentation for reconciliation and synthesis phases
+
 ## 0.2.0
 
 - Implement complete extraction pipeline for codebase analysis

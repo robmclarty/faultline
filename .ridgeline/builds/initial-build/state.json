@@ -20,12 +20,12 @@
     },
     {
       "id": "02-extraction-pipeline",
-      "status": "pending",
+      "status": "complete",
       "checkpointTag": "ridgeline/checkpoint/initial-build/02-extraction-pipeline",
-      "completionTag": null,
+      "completionTag": "ridgeline/phase/initial-build/02-extraction-pipeline",
       "retries": 0,
-      "duration": null,
-      "completedAt": null,
+      "duration": 811487,
+      "completedAt": "2026-04-09T19:12:56.771Z",
       "failedAt": null
     },
     {

@@ -39,7 +39,12 @@ export {
   write_deep_pass_notes,
   read_deep_pass_notes
 } from './extractions.js'
-export { write_output_file } from './output.js'
+export {
+  write_output_file,
+  read_output_file,
+  copy_output_to_ridgeline,
+  list_output_specs
+} from './output.js'
 export { validate_token_ceiling, TokenCeilingError } from './validation.js'
 export {
   read_active_learnings,
@@ -47,3 +52,11 @@ export {
   append_learnings,
   get_domain_learnings
 } from './learnings.js'
+export {
+  write_cross_references,
+  read_cross_references
+} from './reconciliation.js'
+export {
+  write_domain_summaries,
+  read_domain_summaries
+} from './synthesis.js'

@@ -12,4 +12,5 @@ export {
 } from './claude/response_parser.js'
 export { execute_survey } from './pipeline/survey.exec.js'
 export { execute_extract } from './pipeline/extract.exec.js'
+export { execute_reconcile } from './pipeline/reconcile.exec.js'
 export { execute_synthesize } from './pipeline/synthesize.exec.js'

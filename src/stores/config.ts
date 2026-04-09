@@ -13,6 +13,8 @@ const DEFAULT_TIMEOUT = 300_000
 const DEFAULT_MAX_RETRIES = 3
 const DEFAULT_CONCURRENCY = 3
 const DEFAULT_SKIP_DEEP_PASS = false
+const DEFAULT_SKIP_RECONCILE = false
+const DEFAULT_RIDGELINE_NAME = ''
 const DEFAULT_OUTPUT_DIR = '.faultline'
 const CONFIG_FILENAME = 'config.json'
 
@@ -49,6 +51,8 @@ export const resolve_config = (
     max_retries: DEFAULT_MAX_RETRIES,
     concurrency: DEFAULT_CONCURRENCY,
     skip_deep_pass: DEFAULT_SKIP_DEEP_PASS,
+    skip_reconcile: DEFAULT_SKIP_RECONCILE,
+    ridgeline_name: DEFAULT_RIDGELINE_NAME,
     include: [],
     exclude: [],
     output_dir: DEFAULT_OUTPUT_DIR,

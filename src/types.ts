@@ -186,6 +186,37 @@ export type ExtractionReview = {
   uncovered_files: string[]
 }
 
+export type CrossReferenceFindingType =
+  | 'duplicate_rule'
+  | 'missing_handoff'
+  | 'shared_invariant'
+  | 'undeclared_dependency'
+
+export type CrossReferenceFinding = {
+  type: CrossReferenceFindingType
+  description: string
+  affected_domains: string[]
+  resolution_hint: string
+}
+
+export type CrossReferenceCluster = {
+  domains: string[]
+  findings: CrossReferenceFinding[]
+}
+
+export type CrossReferenceReport = {
+  clusters: CrossReferenceCluster[]
+  total_findings: number
+  generated_at: string
+}
+
+export type DomainSummary = {
+  domain_id: string
+  label: string
+  summary: string
+  tokens_est: number
+}
+
 export type FaultlineConfig = {
   target_dir: string
   model: string
@@ -196,6 +227,8 @@ export type FaultlineConfig = {
   max_retries: number
   concurrency: number
   skip_deep_pass: boolean
+  skip_reconcile: boolean
+  ridgeline_name: string
   include: string[]
   exclude: string[]
   output_dir: string

@@ -75,3 +75,23 @@
 - The learnings system is initialized during survey (step 1e') with cross-cutting observations from the architecture description. Future phases should call `append_learnings()` to add domain-specific learnings and `get_domain_learnings()` to retrieve relevant context.
 - The `stores/config.ts` currently only merges CLI flags over defaults. Config file support (`config.json` in `.faultline/`) was omitted since no acceptance criterion requires it, but the architecture supports adding it.
 - All barrel `index.ts` files exist for commands/, engine/, stores/, ui/.
+
+## Phase 1 Retry: Fix Criteria 17 & 21
+
+### What was fixed
+
+1. **Criterion 17 — Domain retry propagation** (`src/engine/pipeline/survey.exec.ts`): Changed `final_domains` from always referencing the original domains to using a `let` variable that gets reassigned to the retry result when domain review fails. Subsequent steps (extraction plan, architecture description) now correctly use retried domains.
+
+2. **Criterion 21 — Learnings token ceiling** (`src/stores/learnings.ts`): Added `validate_token_ceiling()` call on the serialized active set before writing `learnings.json` to disk. This ensures explicit 5k token ceiling enforcement on all Claude-bound files, complementing the implicit 3k compression limit.
+
+### Decisions
+
+- Used a `let` variable pattern instead of reading domains back from disk — simpler and avoids the null-handling overhead of `read_domains()`.
+
+### Deviations
+
+None.
+
+### Notes for next phase
+
+No changes from the original Phase 1 notes.

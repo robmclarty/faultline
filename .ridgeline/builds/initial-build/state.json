@@ -5,12 +5,12 @@
     "shape": "complete",
     "spec": "complete",
     "plan": "complete",
-    "build": "running"
+    "build": "pending"
   },
   "phases": [
     {
       "id": "01-foundation-and-survey",
-      "status": "pending",
+      "status": "reviewing",
       "checkpointTag": "ridgeline/checkpoint/initial-build/01-foundation-and-survey",
       "completionTag": null,
       "retries": 0,

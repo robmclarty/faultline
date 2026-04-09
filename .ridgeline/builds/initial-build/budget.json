@@ -59,7 +59,31 @@
       "cacheCreationInputTokens": 117332,
       "durationMs": 1321839,
       "timestamp": "2026-04-09T18:47:40.944Z"
+    },
+    {
+      "phase": "01-foundation-and-survey",
+      "role": "reviewer",
+      "attempt": 0,
+      "costUsd": 1.57122575,
+      "inputTokens": 19,
+      "outputTokens": 8631,
+      "cacheReadInputTokens": 1517724,
+      "cacheCreationInputTokens": 95439,
+      "durationMs": 235315,
+      "timestamp": "2026-04-09T18:51:44.087Z"
+    },
+    {
+      "phase": "01-foundation-and-survey",
+      "role": "builder",
+      "attempt": 1,
+      "costUsd": 0.5822172499999999,
+      "inputTokens": 19,
+      "outputTokens": 4178,
+      "cacheReadInputTokens": 510982,
+      "cacheCreationInputTokens": 35549,
+      "durationMs": 92792,
+      "timestamp": "2026-04-09T18:53:24.564Z"
     }
   ],
-  "totalCostUsd": 9.3467524
+  "totalCostUsd": 11.500195399999999
 }

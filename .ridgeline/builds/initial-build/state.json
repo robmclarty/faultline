@@ -10,12 +10,12 @@
   "phases": [
     {
       "id": "01-foundation-and-survey",
-      "status": "reviewing",
+      "status": "complete",
       "checkpointTag": "ridgeline/checkpoint/initial-build/01-foundation-and-survey",
-      "completionTag": null,
+      "completionTag": "ridgeline/phase/initial-build/01-foundation-and-survey",
       "retries": 0,
-      "duration": null,
-      "completedAt": null,
+      "duration": 2034100,
+      "completedAt": "2026-04-09T18:59:25.203Z",
       "failedAt": null
     },
     {

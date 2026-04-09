@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.7
+
+- Fix build to copy agent prompt files to dist, preventing ENOENT errors on global install
+
 ## 0.4.0
 
 - Add analyze command with dry-run, status, and budget enforcement

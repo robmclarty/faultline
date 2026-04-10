@@ -25,15 +25,19 @@ violation — the notes should describe product behaviors, not implementations.
 Check for:
 
 1. **File coverage** — Every source file listed in the extraction plan should be
-   referenced at least once in the notes. List any files that were not covered.
+   referenced at least once in the notes. List any unreferenced files in
+   `uncovered_files`. Do NOT set `passed` to `false` for file coverage alone —
+   a separate validation step handles file coverage.
 2. **Abstraction violations** — Scan for framework keywords from the manifest
-   appearing in the notes. Flag each occurrence.
+   appearing in the notes. Flag each occurrence. This is a critical issue.
 3. **Cross-domain dangling references** — If the notes mention dependencies on
-   other domains, check that those domains are declared in the domain structure.
-   Flag undeclared dependencies.
+   other domains, check that those domains are plausible given the extraction
+   plan. References to domains that exist in the extraction plan are expected
+   and should not be flagged. Only flag references to domains that clearly do
+   NOT exist in the plan.
 4. **Gap plausibility** — If a domain has more than 20,000 tokens of source code
    but the "Gaps & Ambiguities" section is empty or trivially short, that is
-   suspicious. Flag it.
+   suspicious. Flag it. This is a critical issue.
 
 ## Output Format
 
@@ -48,5 +52,7 @@ Respond with a single JSON block:
 }
 ```
 
-Set `passed` to `false` if there are any issues. Suggestions alone (without
-issues) still count as `passed: true`.
+Set `passed` to `false` only for abstraction violations (criterion 2) or
+implausible gap coverage (criterion 4). File coverage gaps and expected
+cross-domain references are informational — include them in `suggestions`
+rather than `issues`.

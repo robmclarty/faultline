@@ -271,7 +271,21 @@ const process_domain = async (
 
   await write_extraction_review(output_dir, domain.id, review)
 
-  // Step 2c': Validate file coverage
+  // Step 2c'': Retry consolidation if review failed (do this first so the
+  // subsequent file-coverage check runs against the improved notes)
+  if (!review.passed) {
+    log_info(`Review failed for ${domain.label}, retrying consolidation with feedback`)
+    await consolidate_domain(
+      domain,
+      sorted,
+      config,
+      output_dir,
+      format_review_feedback(review)
+    )
+  }
+
+  // Step 2c': Validate file coverage (runs after review retry so it checks
+  // the latest consolidated notes and gets the final word)
   const consolidated = await read_consolidated_notes(output_dir, domain.id)
   const missing_files = find_missing_files(all_planned_files, consolidated ?? '')
 
@@ -287,18 +301,6 @@ const process_domain = async (
       config,
       output_dir,
       sorted
-    )
-  }
-
-  // Step 2c'': Retry consolidation if review failed
-  if (!review.passed) {
-    log_info(`Review failed for ${domain.label}, retrying consolidation with feedback`)
-    await consolidate_domain(
-      domain,
-      sorted,
-      config,
-      output_dir,
-      format_review_feedback(review)
     )
   }
 
@@ -336,8 +338,14 @@ const process_domain = async (
     const learnings = extract_cross_domain_learnings(domain, final_notes)
 
     if (learnings.length > 0) {
-      await append_learnings(output_dir, learnings)
-      log_debug(`Appended ${learnings.length} learnings from ${domain.label}`)
+      try {
+        await append_learnings(output_dir, learnings)
+        log_debug(`Appended ${learnings.length} learnings from ${domain.label}`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+
+        log_warn(`Failed to append learnings for ${domain.label} (non-critical): ${msg}`)
+      }
     }
   }
 
@@ -826,19 +834,54 @@ const extract_framework_keywords = (manifest: Manifest): string[] => {
 }
 
 /**
- * Finds source files from the plan that are not referenced in the consolidated
- * notes. Uses simple filename matching (basename grep).
+ * Common filenames that appear in many directories. For these, a bare basename
+ * match is unreliable — require at least a dir/filename match instead.
  */
-const find_missing_files = (
+const COMMON_FILENAMES = new Set([
+  'index.ts', 'index.js', 'index.tsx', 'index.jsx', 'index.mjs',
+  'types.ts', 'types.js', 'utils.ts', 'utils.js',
+  'config.ts', 'config.js', 'constants.ts', 'constants.js',
+  'helpers.ts', 'helpers.js', 'main.ts', 'main.js',
+  'app.ts', 'app.js', 'app.tsx', 'app.jsx',
+  'mod.ts', 'mod.rs', 'lib.rs',
+  'index.html', 'index.css', 'index.scss'
+])
+
+/**
+ * Finds source files from the plan that are not referenced in the consolidated
+ * notes. Uses multi-strategy matching: full path, dir/filename combo, and
+ * basename (skipping common filenames for the basename-only check to reduce
+ * false negatives).
+ */
+export const find_missing_files = (
   planned_files: string[],
   consolidated_notes: string
 ): string[] => {
   const notes_lower = consolidated_notes.toLowerCase()
 
   return planned_files.filter(file_path => {
-    const basename = file_path.split('/').pop() ?? file_path
+    const path_lower = file_path.toLowerCase()
 
-    return !notes_lower.includes(basename.toLowerCase())
+    // Strategy 1: Full relative path match (strongest signal)
+    if (notes_lower.includes(path_lower)) return false
+
+    // Strategy 2: Directory + filename combo (e.g. "components/App.js")
+    const parts = file_path.split('/')
+
+    if (parts.length >= 2) {
+      const dir_file = parts.slice(-2).join('/').toLowerCase()
+
+      if (notes_lower.includes(dir_file)) return false
+    }
+
+    // Strategy 3: Basename match, but only for non-common filenames
+    const basename = (parts.pop() ?? file_path).toLowerCase()
+
+    if (!COMMON_FILENAMES.has(basename) && notes_lower.includes(basename)) {
+      return false
+    }
+
+    return true
   })
 }
 

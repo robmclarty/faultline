@@ -136,8 +136,14 @@ export const execute_reconcile = async (config: FaultlineConfig): Promise<void> 
       log_step('2.5d', 'Appending reconciliation findings to learnings')
       const learning_entries = findings_to_learnings(all_findings)
 
-      await append_learnings(output_dir, learning_entries)
-      log_debug(`Appended ${learning_entries.length} learnings from reconciliation`)
+      try {
+        await append_learnings(output_dir, learning_entries)
+        log_debug(`Appended ${learning_entries.length} learnings from reconciliation`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+
+        log_warn(`Failed to append reconciliation learnings (non-critical): ${msg}`)
+      }
     }
 
     mark_phase_completed(phase)

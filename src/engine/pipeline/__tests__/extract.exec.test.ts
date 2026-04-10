@@ -64,12 +64,12 @@ const make_result = (text: string): ClaudeInvocationResult => ({
 
 const BATCH_NOTES = `### Business Rules Observed
 
-- Users must authenticate before accessing tasks (index.js, auth.js)
-- Passwords require minimum 8 characters (auth.js)
+- Users must authenticate before accessing tasks (auth/index.js, auth/auth.js)
+- Passwords require minimum 8 characters (auth/auth.js)
 
 ### Data Invariants
 
-- User IDs are unique across the system (index.js)
+- User IDs are unique across the system (auth/index.js)
 
 ### Gaps & Ambiguities
 
@@ -85,13 +85,13 @@ N/A`
 
 const CONSOLIDATED_NOTES = `### Business Rules Observed
 
-- Users must authenticate before accessing tasks (index.js, auth.js)
-- Passwords require minimum 8 characters (auth.js)
-- Task ownership is enforced at the API level (routes.js)
+- Users must authenticate before accessing tasks (auth/index.js, auth/auth.js)
+- Passwords require minimum 8 characters (auth/auth.js)
+- Task ownership is enforced at the API level (tasks/routes.js)
 
 ### Data Invariants
 
-- User IDs are unique across the system (index.js)
+- User IDs are unique across the system (auth/index.js, tasks/index.js)
 - Tasks always reference a valid user ID
 
 ### Gaps & Ambiguities

@@ -7,7 +7,8 @@ import {
   read_active_learnings,
   read_learnings_log,
   append_learnings,
-  get_domain_learnings
+  get_domain_learnings,
+  _reset_write_queue
 } from '../learnings.js'
 import type { LearningEntry } from '../../types.js'
 import { MAX_CLAUDE_FILE_CHARS } from '../../types.js'
@@ -19,6 +20,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  _reset_write_queue()
   await rm(tmp_dir, { recursive: true, force: true })
 })
 
@@ -141,6 +143,25 @@ describe('learnings compression', () => {
 
     expect(serialized.length).toBeLessThanOrEqual(MAX_CLAUDE_FILE_CHARS)
     expect(active.entries.length).toBeLessThan(20)
+  })
+})
+
+describe('concurrent writes', () => {
+  it('serializes concurrent append calls without data loss', async () => {
+    const promises = Array.from({ length: 5 }, (_, i) =>
+      append_learnings(tmp_dir, [make_entry({ id: `concurrent_${i}`, tokens_est: 10 })])
+    )
+
+    await Promise.all(promises)
+
+    const log = await read_learnings_log(tmp_dir)
+
+    expect(log.entries.length).toBe(5)
+
+    const active = await read_active_learnings(tmp_dir)
+
+    expect(active.entries.length).toBe(5)
+    expect(active.total_tokens).toBe(50)
   })
 })
 

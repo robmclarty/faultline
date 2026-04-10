@@ -126,6 +126,15 @@ export const extract_markdown_body = (output: string): string => {
     }
   }
 
+  // Strip conversational preamble before first markdown heading (h2/h3).
+  // Extraction prompts produce output starting with ### headings, so anything
+  // before the first heading is LLM preamble that shouldn't be in the notes.
+  const first_heading = content.search(/^#{2,3}\s/m)
+
+  if (first_heading > 0) {
+    content = content.slice(first_heading).trim()
+  }
+
   return content
 }
 

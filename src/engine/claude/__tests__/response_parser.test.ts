@@ -98,4 +98,32 @@ describe('extract_markdown_body', () => {
 
     expect(result).toBe('# Title\n\nContent')
   })
+
+  it('strips conversational preamble before first heading', () => {
+    const output = 'Here are the notes I found:\n\n### Business Rules Observed\n\n- Rule 1'
+    const result = extract_markdown_body(output)
+
+    expect(result).toBe('### Business Rules Observed\n\n- Rule 1')
+  })
+
+  it('preserves content when it starts with a heading', () => {
+    const output = '### Business Rules Observed\n\n- Rule 1'
+    const result = extract_markdown_body(output)
+
+    expect(result).toBe('### Business Rules Observed\n\n- Rule 1')
+  })
+
+  it('strips preamble inside markdown fences', () => {
+    const output = '```markdown\nSure, here is the analysis:\n\n### Business Rules\n\n- Rule\n```'
+    const result = extract_markdown_body(output)
+
+    expect(result).toBe('### Business Rules\n\n- Rule')
+  })
+
+  it('does not strip content before h1 headings', () => {
+    const output = 'Some intro text\n\n# Main Title\n\nContent'
+    const result = extract_markdown_body(output)
+
+    expect(result).toBe('Some intro text\n\n# Main Title\n\nContent')
+  })
 })

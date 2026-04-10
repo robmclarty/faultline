@@ -10,3 +10,4 @@ company_patterns.yaml
 *.log
 .DS_Store
 .faultline/
+.fallow/

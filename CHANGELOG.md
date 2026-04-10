@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.9
+
+- Adopt ridgeline's claude spawn pattern: detached process groups, stall/startup timeout detection, and auth error surfacing
+- Pass system prompt directly via `--system-prompt` flag instead of writing to temp files
+- Export `kill_all_claude` and `kill_all_claude_sync` for reliable process cleanup
+- Enable `--fail-on-issues` for fallow lint
+
 ## 0.5.8
 
 - Switch from `--print` to `--output-format stream-json` for reliable structured output parsing

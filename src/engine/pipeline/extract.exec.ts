@@ -537,6 +537,8 @@ const review_extraction = async (
 
     spinner.stop()
 
+    if (!result.success) throw new Error(result.result)
+
     return JSON.parse(result.result) as ExtractionReview
   } catch {
     spinner.stop()

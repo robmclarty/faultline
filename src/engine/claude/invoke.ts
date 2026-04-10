@@ -379,6 +379,7 @@ const spawn_claude = async (options: {
         const stream_result = extract_result(stdout)
 
         resolve({
+          success: stream_result.success,
           result: stream_result.result,
           model,
           input_tokens: stream_result.usage.input_tokens,

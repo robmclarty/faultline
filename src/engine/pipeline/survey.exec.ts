@@ -468,6 +468,8 @@ const classify_files = async (
 
       spinner.stop()
 
+      if (!result.success) throw new Error(result.result)
+
       const classifications = JSON.parse(result.result) as
         Array<{ path: string, language: string, category: string }>
 
@@ -536,6 +538,8 @@ const map_domains = async (
 
     spinner.stop()
 
+    if (!result.success) throw new Error(result.result)
+
     return JSON.parse(result.result) as Domain[]
   } catch (err) {
     spinner.stop()
@@ -577,6 +581,8 @@ const review_domains = async (
     })
 
     spinner.stop()
+
+    if (!result.success) throw new Error(result.result)
 
     return JSON.parse(result.result) as DomainReview
   } catch (err) {
@@ -630,6 +636,8 @@ const retry_domain_mapping = async (
     })
 
     spinner.stop()
+
+    if (!result.success) throw new Error(result.result)
 
     return JSON.parse(result.result) as Domain[]
   } catch (err) {

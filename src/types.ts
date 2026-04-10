@@ -172,6 +172,7 @@ export type LearningsLog = {
 }
 
 export type ClaudeInvocationResult = {
+  success: boolean
   result: string
   model: string
   input_tokens: number

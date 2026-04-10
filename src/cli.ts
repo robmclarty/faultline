@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module'
+
 import { Command } from 'commander'
 
 import {
@@ -14,7 +16,8 @@ import {
 
 ///////////////////////////////////////////////////////////////// Constants //
 
-const VERSION = '0.1.0'
+const require = createRequire(import.meta.url)
+const { version: VERSION } = require('../package.json')
 
 ///////////////////////////////////////////////////////////////////////// API //
 

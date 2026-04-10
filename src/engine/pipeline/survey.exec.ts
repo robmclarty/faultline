@@ -470,8 +470,9 @@ const classify_files = async (
 
       if (!result.success) throw new Error(result.result)
 
-      const classifications = JSON.parse(result.result) as
-        Array<{ path: string, language: string, category: string }>
+      const parsed = JSON.parse(result.result) as
+        { items: Array<{ path: string, language: string, category: string }> }
+      const classifications = parsed.items
 
       // Merge classifications back into file entries
       const class_map = new Map(classifications.map(c => [c.path, c]))
@@ -540,7 +541,7 @@ const map_domains = async (
 
     if (!result.success) throw new Error(result.result)
 
-    return JSON.parse(result.result) as Domain[]
+    return (JSON.parse(result.result) as { items: Domain[] }).items
   } catch (err) {
     spinner.stop()
     throw err
@@ -639,7 +640,7 @@ const retry_domain_mapping = async (
 
     if (!result.success) throw new Error(result.result)
 
-    return JSON.parse(result.result) as Domain[]
+    return (JSON.parse(result.result) as { items: Domain[] }).items
   } catch (err) {
     spinner.stop()
     throw err

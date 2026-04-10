@@ -36,7 +36,7 @@ Compare the consolidated notes from each domain in this cluster. Look for:
 
 ## Output Format
 
-Return a JSON array of findings. Each finding must have:
+Return a JSON object containing an `items` array of findings. Each finding must have:
 
 - `type`: one of `duplicate_rule`, `missing_handoff`, `shared_invariant`, `undeclared_dependency`
 - `description`: clear description of the finding
@@ -44,14 +44,16 @@ Return a JSON array of findings. Each finding must have:
 - `resolution_hint`: suggestion for how to resolve this in the final specs
 
 ```json
-[
-  {
-    "type": "shared_invariant",
-    "description": "All entities use UUID v4 identifiers",
-    "affected_domains": ["auth", "tasks", "billing"],
-    "resolution_hint": "Document in system overview as a cross-cutting invariant"
-  }
-]
+{
+  "items": [
+    {
+      "type": "shared_invariant",
+      "description": "All entities use UUID v4 identifiers",
+      "affected_domains": ["auth", "tasks", "billing"],
+      "resolution_hint": "Document in system overview as a cross-cutting invariant"
+    }
+  ]
+}
 ```
 
-If no findings exist for this cluster, return an empty array: `[]`
+If no findings exist for this cluster, return: `{ "items": [] }`

@@ -500,9 +500,9 @@ const reconcile_cluster = async (
 
     if (!result.success) throw new Error(result.result)
 
-    const findings = JSON.parse(result.result) as CrossReferenceFinding[]
+    const parsed = JSON.parse(result.result) as { items: CrossReferenceFinding[] }
 
-    return Array.isArray(findings) ? findings : []
+    return Array.isArray(parsed.items) ? parsed.items : []
   } catch (err) {
     spinner.stop()
     log_warn(

@@ -16,22 +16,24 @@ and suggestions.
 
 ## Output
 
-Respond with a JSON array of domain objects. Each domain must have:
+Respond with a JSON object containing an `items` array of domain objects. Each domain must have:
 
 ```json
-[
-  {
-    "id": "auth",
-    "label": "Authentication",
-    "description": "User authentication, session management, and authorization",
-    "directories": ["src/auth", "src/middleware/auth"],
-    "key_files": ["src/config/auth.ts"],
-    "estimated_tokens": 12000,
-    "priority": 1,
-    "depends_on": ["database", "config"],
-    "sub_domains": []
-  }
-]
+{
+  "items": [
+    {
+      "id": "auth",
+      "label": "Authentication",
+      "description": "User authentication, session management, and authorization",
+      "directories": ["src/auth", "src/middleware/auth"],
+      "key_files": ["src/config/auth.ts"],
+      "estimated_tokens": 12000,
+      "priority": 1,
+      "depends_on": ["database", "config"],
+      "sub_domains": []
+    }
+  ]
+}
 ```
 
 ## Rules

@@ -25,16 +25,18 @@ path/to/file.ts (.ts, 1234b, ~309 tokens)
 
 ## Output Format
 
-Respond with a JSON array. Each entry must have:
+Respond with a JSON object containing an `items` array. Each entry must have:
 
 ```json
-[
-  {
-    "path": "path/to/file.ts",
-    "language": "typescript",
-    "category": "source"
-  }
-]
+{
+  "items": [
+    {
+      "path": "path/to/file.ts",
+      "language": "typescript",
+      "category": "source"
+    }
+  ]
+}
 ```
 
 ## Rules

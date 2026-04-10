@@ -49,6 +49,7 @@ let output_dir: string
 let source_dir: string
 
 const make_result = (text: string): ClaudeInvocationResult => ({
+  success: true,
   result: text,
   stdout: '',
   stderr: '',
@@ -91,6 +92,7 @@ const make_config = (overrides: Partial<FaultlineConfig> = {}): FaultlineConfig 
   concurrency: 3,
   skip_deep_pass: false,
   skip_reconcile: false,
+  max_budget_usd: 0,
   ridgeline_name: '',
   include: [],
   exclude: [],
@@ -219,7 +221,7 @@ describe('execute_reconcile', () => {
     await write_consolidated_notes(output_dir, 'tasks', CONSOLIDATED_TASKS)
 
     mock_invoke.mockResolvedValueOnce(
-      make_result(JSON.stringify(RECONCILIATION_FINDINGS))
+      make_result(JSON.stringify({ items: RECONCILIATION_FINDINGS }))
     )
 
     await execute_reconcile(make_config())
@@ -250,7 +252,7 @@ describe('execute_reconcile', () => {
     await write_consolidated_notes(output_dir, 'config', CONSOLIDATED_CONFIG)
 
     mock_invoke.mockResolvedValueOnce(
-      make_result(JSON.stringify(RECONCILIATION_FINDINGS))
+      make_result(JSON.stringify({ items: RECONCILIATION_FINDINGS }))
     )
 
     await execute_reconcile(make_config())
@@ -279,7 +281,7 @@ describe('execute_reconcile', () => {
     await write_consolidated_notes(output_dir, 'tasks', CONSOLIDATED_TASKS)
 
     mock_invoke.mockResolvedValueOnce(
-      make_result(JSON.stringify(RECONCILIATION_FINDINGS))
+      make_result(JSON.stringify({ items: RECONCILIATION_FINDINGS }))
     )
 
     await execute_reconcile(make_config())

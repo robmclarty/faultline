@@ -79,6 +79,7 @@ let output_dir: string
 let source_dir: string
 
 const make_result = (text: string): ClaudeInvocationResult => ({
+  success: true,
   result: text,
   stdout: '',
   stderr: '',
@@ -410,7 +411,7 @@ describe('execute_analyze', () => {
       )
 
       // Mock remaining Claude calls: domains, review, architecture
-      const domains_json = JSON.stringify([make_domain('auth', 'Authentication', 1)])
+      const domains_json = JSON.stringify({ items: [make_domain('auth', 'Authentication', 1)] })
       const review_json = JSON.stringify({
         passed: true,
         issues: [],

@@ -10,6 +10,7 @@ import {
   get_domain_learnings
 } from '../learnings.js'
 import type { LearningEntry } from '../../types.js'
+import { MAX_CLAUDE_FILE_CHARS } from '../../types.js'
 
 let tmp_dir: string
 
@@ -116,6 +117,30 @@ describe('learnings compression', () => {
     expect(ids).not.toContain('h1')
     // Contradiction should definitely survive
     expect(ids).toContain('c1')
+  })
+
+  it('drops entries when serialized size exceeds char ceiling', async () => {
+    // Create entries with small tokens_est but large content, so the
+    // token-budget pass keeps them all but serialized JSON exceeds the ceiling.
+    const content = 'x'.repeat(2000)
+    const entries: LearningEntry[] = []
+
+    for (let i = 0; i < 20; i++) {
+      entries.push(make_entry({
+        id: `big_${i}`,
+        tokens_est: 100, // 20 × 100 = 2000, under 3000 token limit
+        content,
+        type: 'hypothesis'
+      }))
+    }
+
+    await append_learnings(tmp_dir, entries)
+
+    const active = await read_active_learnings(tmp_dir)
+    const serialized = JSON.stringify(active, null, 2)
+
+    expect(serialized.length).toBeLessThanOrEqual(MAX_CLAUDE_FILE_CHARS)
+    expect(active.entries.length).toBeLessThan(20)
   })
 })
 

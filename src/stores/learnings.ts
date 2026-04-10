@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 
 import type { LearningEntry, LearningsActive, LearningsLog } from '../types.js'
+import { MAX_CLAUDE_FILE_CHARS } from '../types.js'
 import { validate_token_ceiling } from './validation.js'
 
 ///////////////////////////////////////////////////////////////// Constants //
@@ -140,33 +141,60 @@ export const get_domain_learnings = async (
  * the limit.
  */
 const compress_active_set = (active: LearningsActive): LearningsActive => {
+  let result: LearningsActive
+
   if (active.total_tokens <= ACTIVE_TOKEN_LIMIT) {
-    return active
-  }
+    result = active
+  } else {
+    // Sort by retention priority ascending (lowest dropped first)
+    const sorted = [...active.entries].sort((a, b) => {
+      const prio_a = RETENTION_PRIORITY[a.type] ?? 2
+      const prio_b = RETENTION_PRIORITY[b.type] ?? 2
 
-  // Sort by retention priority ascending (lowest dropped first)
-  const sorted = [...active.entries].sort((a, b) => {
-    const prio_a = RETENTION_PRIORITY[a.type] ?? 2
-    const prio_b = RETENTION_PRIORITY[b.type] ?? 2
+      if (prio_a !== prio_b) {
+        return prio_a - prio_b
+      }
 
-    if (prio_a !== prio_b) {
-      return prio_a - prio_b
+      // Within same priority, drop older first
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    })
+
+    const kept: LearningEntry[] = []
+    let total_tokens = 0
+
+    // Walk from highest priority to lowest, keeping entries until budget met
+    for (const entry of sorted.reverse()) {
+      if (total_tokens + entry.tokens_est <= ACTIVE_TOKEN_LIMIT) {
+        kept.unshift(entry)
+        total_tokens += entry.tokens_est
+      }
     }
 
-    // Within same priority, drop older first
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  })
-
-  const kept: LearningEntry[] = []
-  let total_tokens = 0
-
-  // Walk from highest priority to lowest, keeping entries until budget met
-  for (const entry of sorted.reverse()) {
-    if (total_tokens + entry.tokens_est <= ACTIVE_TOKEN_LIMIT) {
-      kept.unshift(entry)
-      total_tokens += entry.tokens_est
-    }
+    result = { entries: kept, total_tokens }
   }
 
-  return { entries: kept, total_tokens }
+  // Secondary pass: drop entries if serialized size exceeds char ceiling.
+  // tokens_est only covers content, not JSON structural overhead per entry.
+  while (
+    result.entries.length > 0 &&
+    JSON.stringify(result, null, 2).length > MAX_CLAUDE_FILE_CHARS
+  ) {
+    const indexed = result.entries.map((e, i) => ({ e, i }))
+
+    indexed.sort((a, b) => {
+      const prio_a = RETENTION_PRIORITY[a.e.type] ?? 2
+      const prio_b = RETENTION_PRIORITY[b.e.type] ?? 2
+
+      if (prio_a !== prio_b) return prio_a - prio_b
+
+      return new Date(a.e.created_at).getTime() - new Date(b.e.created_at).getTime()
+    })
+
+    const drop_idx = indexed[0].i
+
+    result.entries.splice(drop_idx, 1)
+    result.total_tokens = result.entries.reduce((sum, e) => sum + e.tokens_est, 0)
+  }
+
+  return result
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.8
+
+- Switch from `--print` to `--output-format stream-json` for reliable structured output parsing
+- Add `--json-schema` enforcement for all 6 JSON-expecting call sites (domains, reviews, classifications, reconciliation)
+- Add NDJSON stream parser that prefers `StructuredOutput` tool_use blocks over prose in result field
+- Use actual cost from stream-json instead of estimates in budget tracking
+
 ## 0.5.7
 
 - Fix build to copy agent prompt files to dist, preventing ENOENT errors on global install

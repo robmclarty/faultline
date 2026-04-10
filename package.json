@@ -15,7 +15,7 @@
     "lint:code": "oxlint --ignore-pattern examples",
     "lint:markdown": "markdownlint-cli2 '**/*.md'",
     "lint:agents": "agnix",
-    "lint:fallow": "npx fallow",
+    "lint:fallow": "npx fallow --fail-on-issues",
     "typecheck": "tsc --noEmit --pretty",
     "prepublishOnly": "npm run build",
     "coverage": "vitest run --coverage",

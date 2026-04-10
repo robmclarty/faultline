@@ -1,7 +1,4 @@
-import { spawn } from 'node:child_process'
-import { writeFile, mkdtemp, rm } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { spawn, ChildProcess } from 'node:child_process'
 
 import { append_budget_entry, create_budget_entry, read_budget } from '../../stores/budget.js'
 import type { ClaudeInvocationResult } from '../../types.js'
@@ -12,6 +9,12 @@ import { extract_result } from './stream_parser.js'
 const DEFAULT_TIMEOUT = 300_000
 const MAX_RETRIES = 3
 const BASE_DELAY = 1_000
+
+/** Kill if no stdout arrives within 2 minutes of spawn. */
+const DEFAULT_STARTUP_TIMEOUT_MS = 2 * 60 * 1000
+
+/** Kill if no stdout arrives for 5 minutes during execution. */
+const DEFAULT_STALL_TIMEOUT_MS = 5 * 60 * 1000
 
 /////////////////////////////////////////////////////////////////////// Types //
 
@@ -61,7 +64,40 @@ export class BudgetExceededError extends Error {
  * Registry of active child processes. Used for graceful SIGINT cleanup when
  * running concurrent extractions.
  */
-const active_processes = new Set<ReturnType<typeof spawn>>()
+const active_processes = new Set<ChildProcess>()
+
+/**
+ * Kill a process by its process group (negative PID).
+ */
+const kill_proc = (proc: ChildProcess, signal: NodeJS.Signals): void => {
+  if (proc.pid) {
+    try { process.kill(-proc.pid, signal) } catch { /* already dead */ }
+  }
+}
+
+/**
+ * Graceful kill: SIGTERM all process groups, then SIGKILL after 2s.
+ */
+export const kill_all_claude = (): void => {
+  for (const proc of active_processes) {
+    kill_proc(proc, 'SIGTERM')
+  }
+
+  setTimeout(() => {
+    for (const proc of active_processes) {
+      kill_proc(proc, 'SIGKILL')
+    }
+  }, 2000)
+}
+
+/**
+ * Immediate kill: SIGKILL all process groups. Use before process.exit().
+ */
+export const kill_all_claude_sync = (): void => {
+  for (const proc of active_processes) {
+    kill_proc(proc, 'SIGKILL')
+  }
+}
 
 /**
  * Cleanup handler — kills all active processes on SIGINT.
@@ -71,10 +107,7 @@ const setup_cleanup = (): void => {
   cleanup_registered = true
 
   process.on('SIGINT', () => {
-    for (const proc of active_processes) {
-      proc.kill('SIGTERM')
-    }
-
+    kill_all_claude_sync()
     active_processes.clear()
   })
 }
@@ -111,7 +144,7 @@ const sleep = (ms: number): Promise<void> =>
 /**
  * Invoke Claude
  *
- * Spawns `claude --print` with the given system prompt and input. Handles
+ * Spawns `claude -p` with the given system prompt and input. Handles
  * timeout enforcement, retry with exponential backoff, and cost logging.
  *
  * @param options - Invocation configuration.
@@ -196,8 +229,10 @@ export const invoke_claude = async (options: InvokeOptions): Promise<ClaudeInvoc
 /**
  * Spawn Claude
  *
- * Low-level subprocess spawn. Creates a temp file for the system prompt,
- * pipes input via stdin, captures stdout/stderr.
+ * Low-level subprocess spawn. Passes system prompt directly via
+ * --system-prompt flag, pipes input via stdin, captures stdout/stderr.
+ * Uses detached process groups for reliable cleanup and includes
+ * stall/startup timeout detection.
  */
 const spawn_claude = async (options: {
   model: string
@@ -211,17 +246,11 @@ const spawn_claude = async (options: {
 }): Promise<ClaudeInvocationResult> => {
   const { model, system_prompt, input, timeout, verbose, allowed_tools, agents, json_schema } = options
 
-  // Write system prompt to temp file
-  const tmp_dir = await mkdtemp(join(tmpdir(), 'faultline-'))
-  const prompt_path = join(tmp_dir, 'system.md')
-
-  await writeFile(prompt_path, system_prompt, 'utf-8')
-
   const args = [
     '-p',
     '--output-format', 'stream-json',
     '--model', model,
-    '--system-prompt', prompt_path,
+    '--system-prompt', system_prompt,
     '--verbose'
   ]
 
@@ -239,7 +268,8 @@ const spawn_claude = async (options: {
 
   return new Promise<ClaudeInvocationResult>((resolve, reject) => {
     const proc = spawn('claude', args, {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      detached: true,
     })
 
     active_processes.add(proc)
@@ -247,11 +277,40 @@ const spawn_claude = async (options: {
     let stdout = ''
     let stderr = ''
 
-    proc.stdout.on('data', (data: Buffer) => {
+    // --- Stall / startup detection ---
+    let stalled = false
+    let stall_reason = ''
+
+    const kill_on_stall = (reason: string) => {
+      stalled = true
+      stall_reason = reason
+      kill_proc(proc, 'SIGTERM')
+      setTimeout(() => kill_proc(proc, 'SIGKILL'), 5000)
+    }
+
+    // Startup probe: short fuse for the very first stdout event
+    let stall_timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      kill_on_stall(
+        `No output received within ${Math.round(DEFAULT_STARTUP_TIMEOUT_MS / 1000)}s of spawn (startup timeout)`
+      )
+    }, DEFAULT_STARTUP_TIMEOUT_MS)
+
+    const reset_stall_timer = () => {
+      if (stalled) return
+      if (stall_timer) clearTimeout(stall_timer)
+      stall_timer = setTimeout(() => {
+        kill_on_stall(
+          `No output received for ${Math.round(DEFAULT_STALL_TIMEOUT_MS / 1000)}s (stall timeout)`
+        )
+      }, DEFAULT_STALL_TIMEOUT_MS)
+    }
+
+    proc.stdout!.on('data', (data: Buffer) => {
       stdout += data.toString()
+      reset_stall_timer()
     })
 
-    proc.stderr.on('data', (data: Buffer) => {
+    proc.stderr!.on('data', (data: Buffer) => {
       stderr += data.toString()
 
       if (verbose) {
@@ -259,28 +318,55 @@ const spawn_claude = async (options: {
       }
     })
 
-    // Timeout enforcement
+    // --- Global timeout ---
+    let timed_out = false
     const timer = setTimeout(() => {
-      proc.kill('SIGTERM')
-      reject(new ClaudeInvocationError(
-        `Claude invocation timed out after ${timeout}ms`,
-        -1,
-        stderr
-      ))
+      timed_out = true
+      kill_proc(proc, 'SIGTERM')
+      setTimeout(() => kill_proc(proc, 'SIGKILL'), 5000)
     }, timeout)
 
-    proc.on('close', async (code) => {
+    proc.on('close', (code) => {
       clearTimeout(timer)
+      if (stall_timer) clearTimeout(stall_timer)
       active_processes.delete(proc)
 
-      // Cleanup temp files
-      try {
-        await rm(tmp_dir, { recursive: true, force: true })
-      } catch {
-        // Best-effort cleanup
+      if (timed_out) {
+        reject(new ClaudeInvocationError(
+          `Claude invocation timed out after ${timeout}ms`,
+          -1,
+          stderr
+        ))
+        return
       }
 
-      if (code !== 0) {
+      if (stalled) {
+        reject(new ClaudeInvocationError(
+          `Claude invocation stalled: ${stall_reason}`,
+          -1,
+          stderr
+        ))
+        return
+      }
+
+      if (code !== 0 && !stdout.trim()) {
+        const lower = stderr.toLowerCase()
+
+        if (
+          lower.includes('authentication') ||
+          lower.includes('unauthorized') ||
+          lower.includes('forbidden') ||
+          lower.includes('oauth token has expired') ||
+          lower.includes('invalid_api_key')
+        ) {
+          reject(new ClaudeInvocationError(
+            'Authentication failed. Refresh your OAuth token or API key and retry.',
+            code ?? 1,
+            stderr
+          ))
+          return
+        }
+
         reject(new ClaudeInvocationError(
           `Claude exited with code ${code}`,
           code ?? 1,
@@ -317,6 +403,7 @@ const spawn_claude = async (options: {
 
     proc.on('error', (err) => {
       clearTimeout(timer)
+      if (stall_timer) clearTimeout(stall_timer)
       active_processes.delete(proc)
       reject(new ClaudeInvocationError(
         `Failed to spawn claude: ${err.message}`,
@@ -326,7 +413,7 @@ const spawn_claude = async (options: {
     })
 
     // Pipe input via stdin
-    proc.stdin.write(input)
-    proc.stdin.end()
+    proc.stdin!.write(input)
+    proc.stdin!.end()
   })
 }

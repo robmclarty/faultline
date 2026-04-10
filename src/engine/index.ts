@@ -5,7 +5,9 @@ export { parse_manifest } from './manifest_parser.js'
 export {
   invoke_claude,
   BudgetExceededError,
-  set_budget_limit
+  set_budget_limit,
+  kill_all_claude,
+  kill_all_claude_sync
 } from './claude/invoke.js'
 export { load_prompt, interpolate } from './claude/prompt_loader.js'
 export {

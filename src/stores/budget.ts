@@ -47,7 +47,9 @@ export const append_budget_entry = async (
   const budget = await read_budget(output_dir)
 
   budget.entries.push(entry)
-  budget.total_cost = budget.entries.reduce((sum, e) => sum + e.estimated_cost, 0)
+  budget.total_cost = budget.entries.reduce(
+    (sum, e) => sum + (e.actual_cost ?? e.estimated_cost), 0
+  )
 
   const budget_path = join(output_dir, BUDGET_FILE)
 
@@ -71,7 +73,8 @@ export const create_budget_entry = (
   task: string,
   model: string,
   input_tokens: number,
-  output_tokens: number
+  output_tokens: number,
+  actual_cost?: number
 ): BudgetEntry => ({
   timestamp: new Date().toISOString(),
   phase,
@@ -79,7 +82,8 @@ export const create_budget_entry = (
   model,
   input_tokens,
   output_tokens,
-  estimated_cost: estimate_cost(model, input_tokens, output_tokens)
+  estimated_cost: estimate_cost(model, input_tokens, output_tokens),
+  ...(actual_cost != null ? { actual_cost } : {})
 })
 
 ///////////////////////////////////////////////////////////////////// Helpers //

@@ -5,7 +5,12 @@ import { parse_manifest } from '../manifest_parser.js'
 import { pack_batches, build_extraction_tasks } from '../batcher.js'
 import { invoke_claude } from '../claude/invoke.js'
 import { load_prompt } from '../claude/prompt_loader.js'
-import { extract_json_block, extract_markdown_body } from '../claude/response_parser.js'
+import { extract_markdown_body } from '../claude/response_parser.js'
+import {
+  CLASSIFY_FILES_SCHEMA,
+  MAP_DOMAINS_SCHEMA,
+  DOMAIN_REVIEW_SCHEMA
+} from '../claude/schemas.js'
 import {
   write_file_index,
   read_file_index,
@@ -457,14 +462,14 @@ const classify_files = async (
         output_dir,
         phase: 'survey',
         task: `classify_batch_${i}`,
-        verbose: config.verbose
+        verbose: config.verbose,
+        json_schema: CLASSIFY_FILES_SCHEMA
       })
 
       spinner.stop()
 
-      const classifications = extract_json_block<
+      const classifications = JSON.parse(result.result) as
         Array<{ path: string, language: string, category: string }>
-      >(result.stdout)
 
       // Merge classifications back into file entries
       const class_map = new Map(classifications.map(c => [c.path, c]))
@@ -525,12 +530,13 @@ const map_domains = async (
       output_dir,
       phase: 'survey',
       task: 'domain_mapping',
-      verbose: config.verbose
+      verbose: config.verbose,
+      json_schema: MAP_DOMAINS_SCHEMA
     })
 
     spinner.stop()
 
-    return extract_json_block<Domain[]>(result.stdout)
+    return JSON.parse(result.result) as Domain[]
   } catch (err) {
     spinner.stop()
     throw err
@@ -566,12 +572,13 @@ const review_domains = async (
       output_dir,
       phase: 'survey',
       task: 'domain_review',
-      verbose: config.verbose
+      verbose: config.verbose,
+      json_schema: DOMAIN_REVIEW_SCHEMA
     })
 
     spinner.stop()
 
-    return extract_json_block<DomainReview>(result.stdout)
+    return JSON.parse(result.result) as DomainReview
   } catch (err) {
     spinner.stop()
     throw err
@@ -618,12 +625,13 @@ const retry_domain_mapping = async (
       output_dir,
       phase: 'survey',
       task: 'domain_mapping_retry',
-      verbose: config.verbose
+      verbose: config.verbose,
+      json_schema: MAP_DOMAINS_SCHEMA
     })
 
     spinner.stop()
 
-    return extract_json_block<Domain[]>(result.stdout)
+    return JSON.parse(result.result) as Domain[]
   } catch (err) {
     spinner.stop()
     throw err
@@ -666,7 +674,7 @@ const describe_architecture = async (
 
     spinner.stop()
 
-    return extract_markdown_body(result.stdout)
+    return extract_markdown_body(result.result)
   } catch (err) {
     spinner.stop()
     throw err

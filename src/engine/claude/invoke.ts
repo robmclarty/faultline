@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 
 import { append_budget_entry, create_budget_entry, read_budget } from '../../stores/budget.js'
 import type { ClaudeInvocationResult } from '../../types.js'
+import { extract_result } from './stream_parser.js'
 
 ///////////////////////////////////////////////////////////////// Constants //
 
@@ -27,6 +28,7 @@ export type InvokeOptions = {
   verbose?: boolean
   allowed_tools?: string[]
   agents?: string[]
+  json_schema?: string
 }
 
 export class ClaudeInvocationError extends Error {
@@ -99,21 +101,6 @@ export const set_budget_limit = (limit_usd: number): void => {
 }
 
 /**
- * Parses token counts from Claude's verbose stderr output.
- */
-const parse_token_counts = (
-  stderr: string
-): { input_tokens: number, output_tokens: number } => {
-  const input_match = stderr.match(/input[_\s]tokens[:\s]+(\d+)/i)
-  const output_match = stderr.match(/output[_\s]tokens[:\s]+(\d+)/i)
-
-  return {
-    input_tokens: input_match ? parseInt(input_match[1], 10) : 0,
-    output_tokens: output_match ? parseInt(output_match[1], 10) : 0
-  }
-}
-
-/**
  * Sleeps for the given number of milliseconds.
  */
 const sleep = (ms: number): Promise<void> =>
@@ -145,7 +132,8 @@ export const invoke_claude = async (options: InvokeOptions): Promise<ClaudeInvoc
     task,
     verbose = false,
     allowed_tools,
-    agents
+    agents,
+    json_schema
   } = options
 
   // Check budget ceiling before invocation
@@ -176,7 +164,8 @@ export const invoke_claude = async (options: InvokeOptions): Promise<ClaudeInvoc
         timeout,
         verbose,
         allowed_tools,
-        agents
+        agents,
+        json_schema
       })
 
       // Log cost
@@ -185,7 +174,8 @@ export const invoke_claude = async (options: InvokeOptions): Promise<ClaudeInvoc
         task,
         model,
         result.input_tokens,
-        result.output_tokens
+        result.output_tokens,
+        result.cost_usd
       )
 
       await append_budget_entry(output_dir, entry)
@@ -217,8 +207,9 @@ const spawn_claude = async (options: {
   verbose: boolean
   allowed_tools?: string[]
   agents?: string[]
+  json_schema?: string
 }): Promise<ClaudeInvocationResult> => {
-  const { model, system_prompt, input, timeout, verbose, allowed_tools, agents } = options
+  const { model, system_prompt, input, timeout, verbose, allowed_tools, agents, json_schema } = options
 
   // Write system prompt to temp file
   const tmp_dir = await mkdtemp(join(tmpdir(), 'faultline-'))
@@ -227,7 +218,8 @@ const spawn_claude = async (options: {
   await writeFile(prompt_path, system_prompt, 'utf-8')
 
   const args = [
-    '--print',
+    '-p',
+    '--output-format', 'stream-json',
     '--model', model,
     '--system-prompt', prompt_path,
     '--verbose'
@@ -239,6 +231,10 @@ const spawn_claude = async (options: {
 
   if (agents && agents.length > 0) {
     args.push('--agents', ...agents)
+  }
+
+  if (json_schema) {
+    args.push('--json-schema', json_schema)
   }
 
   return new Promise<ClaudeInvocationResult>((resolve, reject) => {
@@ -284,8 +280,6 @@ const spawn_claude = async (options: {
         // Best-effort cleanup
       }
 
-      const tokens = parse_token_counts(stderr)
-
       if (code !== 0) {
         reject(new ClaudeInvocationError(
           `Claude exited with code ${code}`,
@@ -295,14 +289,30 @@ const spawn_claude = async (options: {
         return
       }
 
-      resolve({
-        stdout,
-        stderr,
-        exit_code: 0,
-        model,
-        input_tokens: tokens.input_tokens,
-        output_tokens: tokens.output_tokens
-      })
+      try {
+        const stream_result = extract_result(stdout)
+
+        resolve({
+          result: stream_result.result,
+          model,
+          input_tokens: stream_result.usage.input_tokens,
+          output_tokens: stream_result.usage.output_tokens,
+          cache_read_input_tokens: stream_result.usage.cache_read_input_tokens,
+          cache_creation_input_tokens: stream_result.usage.cache_creation_input_tokens,
+          cost_usd: stream_result.cost_usd,
+          duration_ms: stream_result.duration_ms,
+          session_id: stream_result.session_id,
+          stdout,
+          stderr,
+          exit_code: 0,
+        })
+      } catch (err) {
+        reject(new ClaudeInvocationError(
+          `Failed to parse stream-json output: ${err instanceof Error ? err.message : String(err)}`,
+          0,
+          stderr
+        ))
+      }
     })
 
     proc.on('error', (err) => {

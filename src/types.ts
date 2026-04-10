@@ -142,6 +142,7 @@ export type BudgetEntry = {
   input_tokens: number
   output_tokens: number
   estimated_cost: number
+  actual_cost?: number
 }
 
 export type BudgetLog = {
@@ -171,12 +172,18 @@ export type LearningsLog = {
 }
 
 export type ClaudeInvocationResult = {
-  stdout: string
-  stderr: string
-  exit_code: number
+  result: string
   model: string
   input_tokens: number
   output_tokens: number
+  cache_read_input_tokens: number
+  cache_creation_input_tokens: number
+  cost_usd: number
+  duration_ms: number
+  session_id: string
+  stdout: string
+  stderr: string
+  exit_code: number
 }
 
 export type ExtractionReview = {

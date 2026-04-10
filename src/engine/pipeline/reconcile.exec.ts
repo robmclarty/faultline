@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { invoke_claude } from '../claude/invoke.js'
 import { load_prompt } from '../claude/prompt_loader.js'
-import { extract_json_block } from '../claude/response_parser.js'
+import { CROSS_REFERENCE_FINDINGS_SCHEMA } from '../claude/schemas.js'
 import {
   read_state,
   write_state,
@@ -492,12 +492,13 @@ const reconcile_cluster = async (
       output_dir,
       phase: 'reconcile',
       task: `reconcile_${cluster.join('_')}`,
-      verbose: config.verbose
+      verbose: config.verbose,
+      json_schema: CROSS_REFERENCE_FINDINGS_SCHEMA
     })
 
     spinner.stop()
 
-    const findings = extract_json_block<CrossReferenceFinding[]>(result.stdout)
+    const findings = JSON.parse(result.result) as CrossReferenceFinding[]
 
     return Array.isArray(findings) ? findings : []
   } catch (err) {

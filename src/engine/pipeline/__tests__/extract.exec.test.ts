@@ -46,13 +46,19 @@ let tmp_dir: string
 let output_dir: string
 let source_dir: string
 
-const make_result = (stdout: string): ClaudeInvocationResult => ({
-  stdout,
+const make_result = (text: string): ClaudeInvocationResult => ({
+  result: text,
+  stdout: '',
   stderr: '',
   exit_code: 0,
   model: 'sonnet',
   input_tokens: 100,
-  output_tokens: 50
+  output_tokens: 50,
+  cache_read_input_tokens: 0,
+  cache_creation_input_tokens: 0,
+  cost_usd: 0.001,
+  duration_ms: 1000,
+  session_id: 'test-session'
 })
 
 const BATCH_NOTES = `### Business Rules Observed
@@ -240,7 +246,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))        // batch extract
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES)) // consolidate
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``)) // review
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED)) // review
 
       const config = make_config()
 
@@ -268,7 +274,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -286,7 +292,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -343,7 +349,7 @@ describe('execute_extract', () => {
         .mockResolvedValueOnce(make_result(batch_0_notes))     // batch 0
         .mockResolvedValueOnce(make_result(batch_1_notes))     // batch 1
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES)) // consolidate
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``)) // review
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED)) // review
 
       await execute_extract(make_config())
 
@@ -364,7 +370,7 @@ describe('execute_extract', () => {
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -398,7 +404,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))         // batch extract
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))  // consolidate
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_FAILED}\n\`\`\``))  // review fails
+        .mockResolvedValueOnce(make_result(REVIEW_FAILED))  // review fails
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))  // consolidate retry
 
       await execute_extract(make_config())
@@ -416,7 +422,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -444,7 +450,7 @@ describe('execute_extract', () => {
         .mockResolvedValueOnce(make_result(BATCH_NOTES))           // batch
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))    // consolidate
         .mockResolvedValueOnce(
-          make_result(`\`\`\`json\n${REVIEW_WITH_SUGGESTIONS}\n\`\`\``)
+          make_result(REVIEW_WITH_SUGGESTIONS)
         )                                                           // review with suggestions
         .mockResolvedValueOnce(make_result(DEEP_PASS_NOTES))       // deep pass
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))    // merge deep pass
@@ -477,7 +483,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -503,7 +509,7 @@ describe('execute_extract', () => {
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
         .mockResolvedValueOnce(
-          make_result(`\`\`\`json\n${REVIEW_WITH_SUGGESTIONS}\n\`\`\``)
+          make_result(REVIEW_WITH_SUGGESTIONS)
         )
 
       await execute_extract(make_config({ skip_deep_pass: true }))
@@ -530,7 +536,7 @@ describe('execute_extract', () => {
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
         .mockResolvedValueOnce(
-          make_result(`\`\`\`json\n${REVIEW_WITH_SUGGESTIONS}\n\`\`\``)
+          make_result(REVIEW_WITH_SUGGESTIONS)
         )
 
       await execute_extract(make_config())
@@ -583,7 +589,7 @@ describe('execute_extract', () => {
         current_concurrent--
 
         if (opts.task.startsWith('review_')) {
-          return make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``)
+          return make_result(REVIEW_PASSED)
         }
 
         if (opts.task.startsWith('consolidate_')) {
@@ -628,7 +634,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -679,7 +685,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -708,7 +714,7 @@ describe('execute_extract', () => {
       mock_invoke
         .mockResolvedValueOnce(make_result(BATCH_NOTES))
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 
@@ -762,7 +768,7 @@ describe('execute_extract', () => {
       // Only consolidation and review should be called (not batch extraction)
       mock_invoke
         .mockResolvedValueOnce(make_result(CONSOLIDATED_NOTES))
-        .mockResolvedValueOnce(make_result(`\`\`\`json\n${REVIEW_PASSED}\n\`\`\``))
+        .mockResolvedValueOnce(make_result(REVIEW_PASSED))
 
       await execute_extract(make_config())
 

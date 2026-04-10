@@ -284,7 +284,7 @@ const compress_domain_summaries = async (
 
       spinner.stop()
 
-      const summary = extract_markdown_body(result.stdout)
+      const summary = extract_markdown_body(result.result)
 
       summaries.push({
         domain_id: domain.id,
@@ -377,7 +377,7 @@ const write_domain_spec = async (
 
     spinner.stop()
 
-    let spec_content = extract_markdown_body(result.stdout)
+    let spec_content = extract_markdown_body(result.result)
 
     // Parse for multi-file splits
     const specs = parse_spec_splits(spec_content, domain.id)
@@ -577,7 +577,7 @@ const rewrite_with_feedback = async (
 
     spinner.stop()
 
-    return extract_markdown_body(result.stdout)
+    return extract_markdown_body(result.result)
   } catch (err) {
     spinner.stop()
     log_warn(
@@ -633,7 +633,7 @@ const write_overview_spec = async (
 
     spinner.stop()
 
-    const content = extract_markdown_body(result.stdout)
+    const content = extract_markdown_body(result.result)
 
     await write_output_file(output_dir, 'specs/00-overview.md', content)
   } catch (err) {
@@ -684,7 +684,7 @@ const write_architecture_spec = async (
 
     spinner.stop()
 
-    const content = extract_markdown_body(result.stdout)
+    const content = extract_markdown_body(result.result)
 
     await write_output_file(output_dir, 'architecture.md', content)
   } catch (err) {
@@ -734,7 +734,7 @@ const write_constraints_spec = async (
 
     spinner.stop()
 
-    const content = extract_markdown_body(result.stdout)
+    const content = extract_markdown_body(result.result)
 
     await write_output_file(output_dir, 'constraints.md', content)
   } catch (err) {
@@ -777,7 +777,7 @@ const write_taste_spec = async (
 
     spinner.stop()
 
-    const content = extract_markdown_body(result.stdout)
+    const content = extract_markdown_body(result.result)
 
     await write_output_file(output_dir, 'taste.md', content)
   } catch (err) {

@@ -48,13 +48,19 @@ let tmp_dir: string
 let output_dir: string
 let source_dir: string
 
-const make_result = (stdout: string): ClaudeInvocationResult => ({
-  stdout,
+const make_result = (text: string): ClaudeInvocationResult => ({
+  result: text,
+  stdout: '',
   stderr: '',
   exit_code: 0,
   model: 'sonnet',
   input_tokens: 100,
-  output_tokens: 50
+  output_tokens: 50,
+  cache_read_input_tokens: 0,
+  cache_creation_input_tokens: 0,
+  cost_usd: 0.001,
+  duration_ms: 1000,
+  session_id: 'test-session'
 })
 
 const make_domain = (

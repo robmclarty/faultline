@@ -3,7 +3,8 @@ import { join } from 'node:path'
 
 import { invoke_claude } from '../claude/invoke.js'
 import { load_prompt } from '../claude/prompt_loader.js'
-import { extract_json_block, extract_markdown_body } from '../claude/response_parser.js'
+import { extract_markdown_body } from '../claude/response_parser.js'
+import { EXTRACTION_REVIEW_SCHEMA } from '../claude/schemas.js'
 import { estimate_tokens } from '../token_estimator.js'
 import {
   read_state,
@@ -417,7 +418,7 @@ const extract_batch = async (
 
     spinner.stop()
 
-    const notes = extract_markdown_body(result.stdout)
+    const notes = extract_markdown_body(result.result)
 
     await write_batch_notes(output_dir, domain.id, task.batch_index, notes)
     log_debug(`Batch ${task.batch_index} complete for ${domain.label}`)
@@ -478,7 +479,7 @@ const consolidate_domain = async (
 
     spinner.stop()
 
-    const notes = extract_markdown_body(result.stdout)
+    const notes = extract_markdown_body(result.result)
 
     await write_consolidated_notes(output_dir, domain.id, notes)
   } catch (err) {
@@ -530,12 +531,13 @@ const review_extraction = async (
       output_dir,
       phase: 'extract',
       task: `review_${domain.id}`,
-      verbose: config.verbose
+      verbose: config.verbose,
+      json_schema: EXTRACTION_REVIEW_SCHEMA
     })
 
     spinner.stop()
 
-    return extract_json_block<ExtractionReview>(result.stdout)
+    return JSON.parse(result.result) as ExtractionReview
   } catch {
     spinner.stop()
 
@@ -599,7 +601,7 @@ const validate_and_retry = async (
 
     spinner.stop()
 
-    const additional_notes = extract_markdown_body(result.stdout)
+    const additional_notes = extract_markdown_body(result.result)
 
     // Write as an additional batch
     const next_batch = tasks.length + attempt
@@ -682,7 +684,7 @@ const deep_pass_domain = async (
 
     spinner.stop()
 
-    const notes = extract_markdown_body(result.stdout)
+    const notes = extract_markdown_body(result.result)
 
     await write_deep_pass_notes(output_dir, domain.id, notes)
   } catch (err) {
@@ -742,7 +744,7 @@ const merge_deep_pass = async (
 
     spinner.stop()
 
-    const notes = extract_markdown_body(result.stdout)
+    const notes = extract_markdown_body(result.result)
 
     await write_consolidated_notes(output_dir, domain.id, notes)
   } catch (err) {

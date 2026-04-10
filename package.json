@@ -1,6 +1,6 @@
 {
   "name": "@robmclarty/faultline",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "type": "module",
   "description": "Reverse-engineer (or 'decompile') brownfield codebases into abstract product specs.",
   "license": "MIT",

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.10
+
+- Fix spinner flickering from concurrent domain extractions with singleton spinner manager
+- Serialize concurrent learnings writes with promise-based queue to prevent race conditions
+- Eliminate learnings token ceiling errors by returning serialized string from compression
+- Make learnings append failures non-fatal in extract and reconcile phases
+- Improve file-coverage validation with multi-strategy matching (full path, dir/file, basename) and common-filename awareness
+- Strip LLM conversational preamble from consolidated notes before first markdown heading
+- Fix review-then-retry ordering so file-coverage validation runs after review feedback
+- Relax review prompt to only fail on abstraction violations and implausible gap coverage
+- Propagate API error messages instead of masking them as JSON parse failures
+- Wrap top-level array schemas in object to satisfy Anthropic API requirement
+- Enforce char ceiling in learnings compression secondary pass
+- Read CLI version from package.json instead of hardcoded string
+
 ## 0.5.9
 
 - Adopt ridgeline's claude spawn pattern: detached process groups, stall/startup timeout detection, and auth error surfacing
